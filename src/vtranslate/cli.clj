@@ -1,16 +1,19 @@
 (ns vtranslate.cli
-  "Babashka driving adapter over vtranslate-engine. Marshals argv (Bonzai-style
-   positional commands) into an EDN job spec, shells out to the engine JVM
-   subprocess, and prints the engine's EDN Result verbatim.
+  "Babashka driving adapter over vtranslate-engine (boundary). Resolves argv
+   against a Go-Bonzai command tree (vtranslate.cli.command), binds + validates
+   arguments, then runs the leaf: for `translate` it marshals an EDN job spec,
+   shells out to the engine JVM subprocess, and prints the engine's EDN Result.
 
    Process-boundary transport: the engine needs the JVM + native ffmpeg and
-   cannot load into babashka/SCI, so this CLI never depends on it as a classpath
-   library — it INVOKES it (`clojure -M:ffmpeg:run` in the engine checkout).
-
-   The engine owns ALL domain types; this CLI owns none."
+   cannot load into babashka/SCI, so this CLI INVOKES it (`clojure -M:ffmpeg:run`)
+   rather than depending on it as a classpath library. The engine owns ALL domain
+   types; this CLI owns none."
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [vtranslate.cli.command :as cmd]))
+
+;; --- environment ------------------------------------------------------------
 
 (def ^:private repo-root
   (-> *file* fs/absolutize fs/parent fs/parent fs/parent str))
@@ -25,37 +28,12 @@
   (or (System/getenv "VTRANSLATE_ENGINE_DIR")
       (str (fs/path (fs/parent repo-root) "vtranslate-engine"))))
 
-(defn- usage []
-  (println
-   (str/join \newline
-     ["vtranslate — subtitle translation CLI (driver over vtranslate-engine)"
-      ""
-      "USAGE:"
-      "  vtranslate translate <source> <target-lang> [opts]   translate a media file"
-      "  vtranslate version                                   print version"
-      "  vtranslate help                                      this help"
-      ""
-      "TRANSLATE OPTS:"
-      "  --source-lang <code>   source language (default: en)"
-      "  --format <srt|vtt>     subtitle format (default: srt)"
-      "  --job-id <id>          job id (default: derived from source filename)"
-      ""
-      "ENV:"
-      "  VTRANSLATE_ENGINE_DIR  engine checkout dir (default: ../vtranslate-engine)"])))
-
-(defn- parse-args
-  "Split argv into positional args + --opt value pairs."
-  [args]
-  (loop [args args pos [] opts {}]
-    (if-let [a (first args)]
-      (if (str/starts-with? a "--")
-        (recur (drop 2 args) pos (assoc opts (keyword (subs a 2)) (second args)))
-        (recur (rest args) (conj pos a) opts))
-      {:pos pos :opts opts})))
+;; --- engine subprocess (the only effect) ------------------------------------
 
 (defn- run-engine
   "Shell the engine: `clojure -M:ffmpeg:run '<edn-spec>'` in engine-dir. The
-   engine prints one EDN Result to stdout and exits 0/1 — re-emit both streams."
+   engine prints one EDN Result to stdout and exits 0/1 — re-emit both streams,
+   propagate the exit code."
   [spec]
   (let [{:keys [out err exit]}
         (p/sh {:dir engine-dir} "clojure" "-M:ffmpeg:run" (pr-str spec))]
@@ -63,36 +41,57 @@
     (when (seq out) (print out) (flush))
     exit))
 
-(defn- cmd-translate [pos opts]
-  (let [[source target-lang] pos]
-    (cond
-      (not (and source target-lang))
-      (do (binding [*out* *err*]
-            (println "error: translate needs <source> <target-lang>"))
-          (usage) 2)
+;; --- command behaviors ------------------------------------------------------
 
-      (not (fs/exists? source))
+(defn- do-translate [{:keys [args opts]}]
+  (let [{:keys [source target-lang]} args
+        {:keys [source-lang format]} opts]
+    (if-not (fs/exists? source)
       (do (binding [*out* *err*] (println "error: source not found:" source)) 2)
-
-      :else
       (run-engine
-       {:job-id          (or (:job-id opts) (str "cli-" (fs/file-name source)))
+       {:job-id          (str "cli-" (fs/file-name source))
         :source          (str (fs/absolutize source))
-        :source-language (or (:source-lang opts) "en")
+        :source-language source-lang
         :target-language target-lang
         :asset-kind      :media/video
-        :format          (keyword "format" (or (:format opts) "srt"))}))))
+        :format          (keyword "format" format)}))))
+
+;; --- command tree -----------------------------------------------------------
+
+(declare root-command)
+
+(def root-command
+  {:name "vtranslate"
+   :summary "subtitle translation CLI (driver over vtranslate-engine)"
+   :commands
+   [{:name "translate" :aliases #{"tr"}
+     :summary "translate a media file's audio into subtitles"
+     :usage   "vtranslate translate <source> <target-lang> [--source-lang en] [--format srt|vtt]"
+     :args    [{:name :source      :desc "path to the media file"}
+               {:name :target-lang :desc "BCP-47 target language, e.g. pt-BR"}]
+     :opts    {:source-lang {:default "en"  :desc "source language (BCP-47)"}
+               :format      {:default "srt" :enum #{"srt" "vtt"} :desc "subtitle format"}}
+     :run     do-translate}
+    {:name "version" :summary "print the CLI version"
+     :run (fn [_] (println (read-version)) 0)}
+    {:name "help" :summary "show top-level help"
+     :run (fn [_] (println (cmd/help-text root-command ["vtranslate"])) 0)}]})
+
+;; --- entrypoint -------------------------------------------------------------
 
 (defn -main [& argv]
-  (let [{:keys [pos opts]} (parse-args argv)
-        [cmd & more] pos]
+  (let [{:keys [cmd path rest]} (cmd/resolve-command root-command (vec argv))
+        help? (some #{"help" "--help" "-h"} rest)]
     (System/exit
-     (case cmd
-       "translate"  (cmd-translate (vec more) opts)
-       "version"    (do (println (read-version)) 0)
-       ("help" nil) (do (usage) 0)
-       (do (binding [*out* *err*] (println "unknown command:" (pr-str cmd)))
-           (usage) 1)))))
+     (cond
+       help?             (do (println (cmd/help-text cmd path)) 0)
+       (nil? (:run cmd)) (do (println (cmd/help-text cmd path)) 0)  ; bare branch node
+       :else
+       (let [parsed (cmd/parse cmd rest)]
+         (if (cmd/ok? parsed)
+           ((:run cmd) (:ok parsed))
+           (do (binding [*out* *err*] (println "error:" (:error parsed)) (println))
+               (println (cmd/help-text cmd path)) 2)))))))
 
 ;; Allow direct `bb src/vtranslate/cli.clj ...` runs (no-op under `-m`).
 (when (= *file* (System/getProperty "babashka.file"))

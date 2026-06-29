@@ -8,7 +8,12 @@
  :bbin/bin {vtranslate {:main-opts ["-m" "vtranslate.cli"]}}
 
  :tasks
- {run {:doc "Run the CLI, e.g. bb run translate <source> <target-lang> [--flags]"
-       :override-builtin true
-       :requires ([vtranslate.cli])
-       :task (apply vtranslate.cli/-main *command-line-args*)}}}
+ {run  {:doc "Run the CLI, e.g. bb run translate <source> <target-lang> [--flags]"
+        :override-builtin true
+        :requires ([vtranslate.cli])
+        :task (apply vtranslate.cli/-main *command-line-args*)}
+  test {:doc "Run the CLI unit tests (pure command-tree core)"
+        :extra-paths ["test"]
+        :requires (clojure.test vtranslate.cli.command-test)
+        :task (let [{:keys [fail error]} (clojure.test/run-tests 'vtranslate.cli.command-test)]
+                (System/exit (if (pos? (+ fail error)) 1 0)))}}}
