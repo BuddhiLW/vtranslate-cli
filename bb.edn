@@ -1,0 +1,14 @@
+;; vtranslate-cli — babashka driving adapter over vtranslate-engine.
+;; Runtime deps are bb built-ins (process, fs); the engine is invoked as a
+;; subprocess (see src/vtranslate/cli.clj), NOT loaded as a classpath dep —
+;; it needs the JVM + native ffmpeg and cannot run on babashka/SCI.
+{:paths ["src"]
+
+ ;; Installable via `bbin install .` as the `vtranslate` command.
+ :bbin/bin {vtranslate {:main-opts ["-m" "vtranslate.cli"]}}
+
+ :tasks
+ {run {:doc "Run the CLI, e.g. bb run translate <source> <target-lang> [--flags]"
+       :override-builtin true
+       :requires ([vtranslate.cli])
+       :task (apply vtranslate.cli/-main *command-line-args*)}}}

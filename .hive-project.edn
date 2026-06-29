@@ -1,0 +1,26 @@
+;; hive-mcp project configuration
+;; See: https://github.com/BuddhiLW/hive-mcp
+;;
+;; vtranslate-cli — babashka CLI wrapper over vtranslate-engine.
+;; One driving adapter: parse argv -> call engine API -> format output.
+;; Local dev dep on engine: {:local/root "../vtranslate-engine"}.
+
+{:project-id "vtranslate-cli"
+
+ ;; Hierarchical scope: child of the vtranslate umbrella.
+ ;; Knowledge Graph inherits via parent: child sees parent knowledge.
+ :parent-id "vtranslate"
+
+ ;; Legacy field (deprecated - use :parent-id)
+ :parent "vtranslate"
+
+ ;; Project type — babashka CLI tool (bb wrapper script entrypoint)
+ :project-type :babashka
+
+ ;; Watch directories for hot-reload
+ :watch-dirs ["src"]
+
+ ;; Hot-reload off: bb scripts run fresh per invocation, no JVM to reload into.
+ :hot-reload false
+
+ :presets-path nil}
