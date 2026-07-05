@@ -1,39 +1,53 @@
 # vtranslate-cli
 
-Babashka **driving adapter** for [`vtranslate-engine`](../vtranslate-engine) — the
-JVM Clojure subtitle-translation core. This CLI owns **no domain types**; it only
-marshals argv → EDN job-spec → engine subprocess → stdout.
+A [babashka](https://babashka.org) CLI over **vtranslate-engine**. It edits the
+config that selects providers, then shells the engine to run a job. The engine
+owns all domain logic; this is a thin driving adapter (argv → config/spec → engine).
+
+## Arguments are positional (no flags)
+
+Following the [Bonzai](https://github.com/rwxrob/bonzai) command-tree style —
+subcommand words + positional operands, no `--flag` soup.
 
 ```
-video → demux audio → ASR (whisper) → machine-translate → render/mux subtitles
+vtranslate config path                      print the user config path (XDG)
+vtranslate config init                      create the config from defaults (0600)
+vtranslate config show [raw]                show effective (or raw user) config
+vtranslate config get <dotted.key>          e.g. providers.translator
+vtranslate config set <dotted.key> <edn>    e.g. providers.translator :deepl
+vtranslate provider use <asr|mt> <name>     select a provider (validated, persisted)
+vtranslate provider list [asr|mt]           list providers; * = active, secret status
+vtranslate run <source> <target-lang> [source-lang] [format]
 ```
 
-## Why a subprocess
-The engine needs the JVM + native ffmpeg (bytedeco JavaCV) and cannot load into
-babashka/SCI. So the CLI **shells out** to it (`clojure -M:ffmpeg:run` in the
-engine checkout) rather than depending on it as a classpath library.
+## Swapping providers
 
-## Usage
-```
-bb run translate <source> <target-lang> [--source-lang en] [--format srt|vtt] [--job-id id]
-bb run version
-bb run help
-```
-Install as a standalone command with [bbin](https://github.com/babashka/bbin):
-```
-bbin install .
-vtranslate translate clip.mp4 pt-BR
+The active provider lives at `[:providers <port>]` in the config — exactly the key
+the engine reads. Swap it and the engine picks it up on the next run, no code change:
+
+```bash
+vtranslate provider use mt deepl          # translator -> :deepl
+vtranslate provider use asr openai-whisper
+vtranslate provider list                  # confirm the active (*) provider
+vtranslate run movie.mp4 pt-BR en         # translate to Brazilian Portuguese
 ```
 
-## Engine location
-Runs the engine from `../vtranslate-engine` by default. Override with:
-```
-export VTRANSLATE_ENGINE_DIR=/path/to/vtranslate-engine
-```
+## Config + secrets
 
-## Release / versioning
-`VERSION` (plain semver) is the source of truth. Pushing to `main` runs
-`.github/workflows/release.yml`, which tags `vX.Y.Z` and cuts a GitHub Release
-with auto-generated notes. The pinned engine coordinate in `deps.edn` is kept
-current by [`bb-depsolve`](https://github.com/hive-agi/bb-depsolve)
-(`bb sync` / `bb upgrade` / `bb deps-report` from the `vtranslate/` workspace root).
+- **Location:** `$XDG_CONFIG_HOME/vtranslate/config.edn`, else `~/.config/vtranslate/config.edn`.
+  Written `0600`.
+- **Secrets are never stored in the config** — only `:secret-env`, the NAME of the env
+  var holding the key. The engine resolves it from the environment at the HTTP boundary.
+  `provider list` shows whether each provider's `:secret-env` is currently set.
+
+## Engine bridge
+
+`run` builds an EDN job spec, shells `clojure -M:run` in the engine (override the
+location with `VTRANSLATE_ENGINE_DIR`), feeds the spec on stdin, and prints the
+engine's EDN Result. Exit 0 on ok, 1 on err.
+
+## Dev
+
+```bash
+bb vtranslate <subcommand> ...    # run via the bb task
+```

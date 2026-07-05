@@ -1,0 +1,31 @@
+;; vtranslate — baked default config + provider registry.
+;; The CLI deep-merges the user file (~/.config/vtranslate/config.edn) OVER this.
+;; The engine reads [:providers ...] from the user file to route; this registry is
+;; the CLI's source for `provider list`, validation, and api-url/secret-env display.
+;; Provider keys MUST match what the engine registries dispatch on (resolve-*).
+;; SECRETS ARE NEVER STORED HERE — only :secret-env, the NAME of the env var that
+;; holds the key (resolved by the engine adapter at the HTTP boundary).
+{:providers {:transcriber :whisper-local   ; no engine adapter yet (M3) -> fail-loud at run
+             :translator  :openrouter}      ; LLM translation via OpenRouter (works)
+
+ :registry
+ {:transcriber
+  {:whisper-local  {:offline true :binary "whisper"
+                    :note "local whisper.cpp — install the binary"}
+   :openai-whisper {:api-url    "https://api.openai.com/v1/audio/transcriptions"
+                    :secret-env "OPENAI_API_KEY"
+                    :default-model "whisper-1"}}
+  :translator
+  {:identity   {:offline true :note "passthrough — copies source text unchanged"}
+   :openrouter {:api-url    "https://openrouter.ai/api/v1/chat/completions"
+                :secret-env "OPENROUTER_API_KEY"
+                :default-model "z-ai/glm-5.2"
+                :note "LLM translation via OpenRouter (OpenAI-compatible chat). Key may live in pass."}
+   :venice     {:api-url    "https://api.venice.ai/api/v1/chat/completions"
+                :secret-env "VENICE_API_KEY"
+                :default-model "zai-org-glm-5-2"
+                :note "LLM translation via Venice (OpenAI-compatible chat)"}
+   :deepl      {:api-url    "https://api-free.deepl.com/v2/translate"
+                :secret-env "VTRANSLATE_DEEPL_API_KEY"}
+   :argos      {:offline true :binary "argos-translate"
+                :note "local Argos Translate — install the binary"}}}}

@@ -1,19 +1,17 @@
-;; vtranslate-cli — babashka driving adapter over vtranslate-engine.
-;; Runtime deps are bb built-ins (process, fs); the engine is invoked as a
-;; subprocess (see src/vtranslate/cli.clj), NOT loaded as a classpath dep —
-;; it needs the JVM + native ffmpeg and cannot run on babashka/SCI.
-{:paths ["src"]
-
- ;; Installable via `bbin install .` as the `vtranslate` command.
- :bbin/bin {vtranslate {:main-opts ["-m" "vtranslate.cli"]}}
-
- :tasks
- {run  {:doc "Run the CLI, e.g. bb run translate <source> <target-lang> [--flags]"
-        :override-builtin true
-        :requires ([vtranslate.cli])
-        :task (apply vtranslate.cli/-main *command-line-args*)}
-  test {:doc "Run the CLI unit tests (pure command-tree core)"
-        :extra-paths ["test"]
-        :requires (clojure.test vtranslate.cli.command-test)
-        :task (let [{:keys [fail error]} (clojure.test/run-tests 'vtranslate.cli.command-test)]
-                (System/exit (if (pos? (+ fail error)) 1 0)))}}}
+;; vtranslate CLI — a babashka wrapper over vtranslate-engine. One driving
+;; adapter: parse argv -> read/mutate ~/.config/vtranslate/config.edn -> build a
+;; job spec -> shell the engine subprocess -> format its EDN Result. The engine
+;; (a sibling JVM project) owns all domain logic + provider resolution; the CLI
+;; owns argv, config-file editing, and output formatting.
+{:paths ["src" "resources"]
+ :deps  {;; Result monad — the CLI threads the same railway as the engine.
+         io.github.hive-agi/hive-dsl
+         {:git/tag "v0.5.1" :git/sha "335869e023e1bd5bf57c72be881baa647edf4a78"}
+         ;; EDN config IO with 0600 perm-hardening (read-edn / write-edn! :secret?).
+         io.github.hive-agi/hive-di
+         {:local/root "../hive-di"}}
+ ;; babashka.cli / babashka.fs / babashka.process are built into bb — no dep.
+ :tasks {vtranslate {:doc      "vtranslate CLI — config + provider + run"
+                     :requires ([vtranslate.cli.main])
+                     ;; forward the raw trailing args to -main (exec would swallow them)
+                     :task     (apply vtranslate.cli.main/-main *command-line-args*)}}}
