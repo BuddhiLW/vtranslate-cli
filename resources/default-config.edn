@@ -6,12 +6,17 @@
 ;; SECRETS ARE NEVER STORED HERE — only :secret-env, the NAME of the env var that
 ;; holds the key (resolved by the engine adapter at the HTTP boundary).
 {:providers {:transcriber :whisper-local   ; no engine adapter yet (M3) -> fail-loud at run
-             :translator  :venice}          ; LLM translation via Venice (preferred, cheap)
+             :translator  :venice           ; LLM translation via Venice (preferred, cheap)
+             :composer    :none}            ; :none sidecar | :soft embed | :hard burn-in
 
  ;; Active per-adapter opts the engine reads at run time.
  :translator-opts {:model   "gemma-4-uncensored"     ; uncensored multilingual (256k ctx)
                    :window  40                        ; target cues per request
                    :context 4}                        ; neighbour cues sent as context
+
+ ;; Video compositing opts (used when :composer is :hard).
+ :composer-opts {:font-size 28                        ; burn-in font size (px)
+                 :wrap      42}                        ; word-wrap width (chars)
 
  :registry
  {:transcriber

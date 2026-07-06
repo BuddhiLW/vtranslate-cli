@@ -82,39 +82,53 @@
             stem   (fs/strip-ext (fs/file-name p))]
         (str (fs/path (or parent (fs/path ".")) (str stem "." target "." fmt))))))
 
+(defn- video-output-path
+  "mp4 sink beside the source (…/stem.<target>.mp4) for a muxed/burned video."
+  [source target]
+  (let [p      (fs/path source)
+        parent (fs/parent p)
+        stem   (fs/strip-ext (fs/file-name p))]
+    (str (fs/path (or parent (fs/path ".")) (str stem "." target ".mp4")))))
+
 (defn- write-rendered [result output]
   (if (r/err? result)
     result
-    (let [rendered (get-in result [:ok :rendered])]
+    (let [rendered (get-in result [:ok :rendered])
+          video    (get-in result [:ok :output-video])]
       (if (string? rendered)
         (do
           (when-let [parent (fs/parent (fs/path output))]
             (fs/create-dirs parent))
           (spit output rendered)
-          (r/ok {:output output
-                 :job    (select-keys (get-in result [:ok :job])
-                                      [:id :state :target-language :subtitle-id])}))
+          (r/ok (cond-> {:output output
+                         :job    (select-keys (get-in result [:ok :job])
+                                              [:id :state :target-language :subtitle-id])}
+                  video (assoc :output-video video))))
         (r/err :error/no-rendered-subtitle {:output output})))))
 
 (defn- cmd-run [m]
   (let [[source target source-lang fmt output] (:args m)
         fmt   (or fmt "srt")
-        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output]"]
+        mux   (some-> (get-in m [:opts :mux]) keyword)
+        mux?  (and mux (not= :none mux))
+        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]"]
     (cond
       (nil? source) (emit (r/err :error/missing-source {:hint usage}))
       (nil? target) (emit (r/err :error/missing-target {:hint usage}))
       :else
-      (let [out (output-path source target fmt output)]
+      (let [sub-out   (output-path source target fmt output)
+            video-out (when mux? (video-output-path source target))]
         (emit
          (write-rendered
           (engine/run-job
-           {:job-id          (str "cli-" (System/currentTimeMillis))
-            :source          source
-            :source-language (or source-lang "auto")
-            :target-language target
-            :format          (keyword "format" fmt)
-            :config          {}})
-          out))))))
+           (cond-> {:job-id          (str "cli-" (System/currentTimeMillis))
+                    :source          source
+                    :source-language (or source-lang "auto")
+                    :target-language target
+                    :format          (keyword "format" fmt)
+                    :config          (if mux? {:composer mux} {})}
+             mux? (assoc :output video-out)))
+          sub-out))))))
 
 ;; --- dispatch ---------------------------------------------------------------
 
@@ -127,8 +141,9 @@
   (println "  config set <dotted.key> <edn>    set a value, e.g. providers.translator :deepl")
   (println "  provider use <asr|mt> <name>     select a provider (validated, persisted)")
   (println "  provider list [asr|mt]           list providers; * = active, secret-env status")
-  (println "  run <source> <target-lang> [source-lang|auto] [format] [output]")
-  (println "                                   translate; format = srt|vtt, output defaults beside source")
+  (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]")
+  (println "                                   translate; format = srt|vtt, output defaults beside source.")
+  (println "                                   --mux hard burns subs into an .mp4 beside the source (soft: not yet)")
   0)
 
 (def ^:private table
@@ -139,7 +154,8 @@
    {:cmds ["config" "set"]    :fn cmd-config-set}
    {:cmds ["provider" "use"]  :fn cmd-provider-use}
    {:cmds ["provider" "list"] :fn cmd-provider-list}
-   {:cmds ["run"]             :fn cmd-run}
+   {:cmds ["run"]             :fn cmd-run
+    :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in)"}}}
    {:cmds []                  :fn cmd-help}])
 
 (defn -main [& args]
