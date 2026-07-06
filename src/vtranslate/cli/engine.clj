@@ -14,20 +14,29 @@
   []
   (or (not-empty (System/getenv "VTRANSLATE_ENGINE_DIR")) "../vtranslate-engine"))
 
+(defn engine-aliases
+  "Clojure CLI aliases for the engine subprocess. Override with
+   VTRANSLATE_ENGINE_ALIASES, e.g. :ffmpeg:run for no local Whisper JNI."
+  []
+  (or (not-empty (System/getenv "VTRANSLATE_ENGINE_ALIASES"))
+      ":ffmpeg:whisper-jni:run"))
+
 (defn- parse-result
   "The engine prints exactly one EDN Result via prn. Parse the last non-blank
-   stdout line; on anything unexpected, wrap a structured err."
+   stdout line; tagged records are read as their map payload so the CLI can
+   extract :rendered without depending on engine classes."
   [out exit]
   (let [line (->> (str/split-lines (str out)) (remove str/blank?) last)]
-    (or (try (edn/read-string line) (catch Exception _ nil))
+    (or (try (edn/read-string {:default (fn [_tag value] value)} line)
+             (catch Exception _ nil))
         (r/err :error/engine-unparsable {:exit exit :out (str out)}))))
 
 (defn run-job
-  "Shell `clojure -M:run` in the engine dir, feed `spec` as EDN on stdin, parse
-   the printed Result. => (r/ok ...) | (r/err ...)."
+  "Shell the engine in a JVM subprocess, feed `spec` as EDN on stdin, parse the
+   printed Result. => (r/ok ...) | (r/err ...)."
   [spec]
   (let [{:keys [out exit]}
         (p/shell {:dir (engine-dir) :in (pr-str spec)
                   :out :string :err :string :continue true}
-                 "clojure" "-M:run")]
+                 "clojure" (str "-M" (engine-aliases)))]
     (parse-result out exit)))

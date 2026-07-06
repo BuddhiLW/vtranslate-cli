@@ -4,7 +4,7 @@
    POSITIONAL (no flags). Subcommands:
      config  path | init | show [raw] | get <dotted.key> | set <dotted.key> <edn>
      provider use <asr|mt> <name> | list [asr|mt]
-     run <source> <target-lang> [source-lang] [format]
+     run <source> <target-lang> [source-lang|auto] [format]
    Switch providers with `provider use` (persisted to the config the engine reads)."
   (:require [babashka.cli :as cli]
             [clojure.edn :as edn]
@@ -12,7 +12,8 @@
             [clojure.string :as str]
             [hive-dsl.result :as r]
             [vtranslate.cli.config :as config]
-            [vtranslate.cli.engine :as engine]))
+            [vtranslate.cli.engine :as engine]
+            [babashka.fs :as fs]))
 
 (defn- emit
   "Print a Result for humans; return an exit code (0 ok / 1 err). A non-nil ok
@@ -72,22 +73,48 @@
               (run! #(print-port-providers cfg %) ports)
               (r/ok nil))))))
 
-;; --- run (positional: source target [source-lang] [format]) ----------------
+;; --- run (positional: source target [source-lang|auto] [format]) ----------------
+
+(defn- output-path [source target fmt output]
+  (or output
+      (let [p      (fs/path source)
+            parent (fs/parent p)
+            stem   (fs/strip-ext (fs/file-name p))]
+        (str (fs/path (or parent (fs/path ".")) (str stem "." target "." fmt))))))
+
+(defn- write-rendered [result output]
+  (if (r/err? result)
+    result
+    (let [rendered (get-in result [:ok :rendered])]
+      (if (string? rendered)
+        (do
+          (when-let [parent (fs/parent (fs/path output))]
+            (fs/create-dirs parent))
+          (spit output rendered)
+          (r/ok {:output output
+                 :job    (select-keys (get-in result [:ok :job])
+                                      [:id :state :target-language :subtitle-id])}))
+        (r/err :error/no-rendered-subtitle {:output output})))))
 
 (defn- cmd-run [m]
-  (let [[source target source-lang fmt] (:args m)
-        usage "usage: vtranslate run <source> <target-lang> [source-lang] [format]"]
+  (let [[source target source-lang fmt output] (:args m)
+        fmt   (or fmt "srt")
+        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output]"]
     (cond
       (nil? source) (emit (r/err :error/missing-source {:hint usage}))
       (nil? target) (emit (r/err :error/missing-target {:hint usage}))
       :else
-      (emit (engine/run-job
-             {:job-id          (str "cli-" (System/currentTimeMillis))
-              :source          source
-              :source-language source-lang
-              :target-language target
-              :format          (keyword "format" (or fmt "srt"))
-              :config          {}})))))
+      (let [out (output-path source target fmt output)]
+        (emit
+         (write-rendered
+          (engine/run-job
+           {:job-id          (str "cli-" (System/currentTimeMillis))
+            :source          source
+            :source-language (or source-lang "auto")
+            :target-language target
+            :format          (keyword "format" fmt)
+            :config          {}})
+          out))))))
 
 ;; --- dispatch ---------------------------------------------------------------
 
@@ -100,8 +127,8 @@
   (println "  config set <dotted.key> <edn>    set a value, e.g. providers.translator :deepl")
   (println "  provider use <asr|mt> <name>     select a provider (validated, persisted)")
   (println "  provider list [asr|mt]           list providers; * = active, secret-env status")
-  (println "  run <source> <target-lang> [source-lang] [format]")
-  (println "                                   translate; format = srt|vtt (default srt)")
+  (println "  run <source> <target-lang> [source-lang|auto] [format] [output]")
+  (println "                                   translate; format = srt|vtt, output defaults beside source")
   0)
 
 (def ^:private table
