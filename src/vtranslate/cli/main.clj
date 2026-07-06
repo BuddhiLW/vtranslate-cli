@@ -143,7 +143,7 @@
   (println "  provider list [asr|mt]           list providers; * = active, secret-env status")
   (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]")
   (println "                                   translate; format = srt|vtt, output defaults beside source.")
-  (println "                                   --mux hard burns subs into an .mp4 beside the source (soft: not yet)")
+  (println "                                   --mux hard burns subs in; soft embeds a selectable track (both .mp4)")
   0)
 
 (def ^:private table
