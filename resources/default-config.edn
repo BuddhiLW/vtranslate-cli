@@ -6,7 +6,12 @@
 ;; SECRETS ARE NEVER STORED HERE — only :secret-env, the NAME of the env var that
 ;; holds the key (resolved by the engine adapter at the HTTP boundary).
 {:providers {:transcriber :whisper-local   ; no engine adapter yet (M3) -> fail-loud at run
-             :translator  :openrouter}      ; LLM translation via OpenRouter (works)
+             :translator  :venice}          ; LLM translation via Venice (preferred, cheap)
+
+ ;; Active per-adapter opts the engine reads at run time.
+ :translator-opts {:model   "gemma-4-uncensored"     ; uncensored multilingual (256k ctx)
+                   :window  40                        ; target cues per request
+                   :context 4}                        ; neighbour cues sent as context
 
  :registry
  {:transcriber
@@ -23,8 +28,8 @@
                 :note "LLM translation via OpenRouter (OpenAI-compatible chat). Key may live in pass."}
    :venice     {:api-url    "https://api.venice.ai/api/v1/chat/completions"
                 :secret-env "VENICE_API_KEY"
-                :default-model "zai-org-glm-5-2"
-                :note "LLM translation via Venice (OpenAI-compatible chat)"}
+                :default-model "gemma-4-uncensored"
+                :note "LLM translation via Venice (OpenAI-compatible, uncensored). Key may live in pass."}
    :deepl      {:api-url    "https://api-free.deepl.com/v2/translate"
                 :secret-env "VTRANSLATE_DEEPL_API_KEY"}
    :argos      {:offline true :binary "argos-translate"
