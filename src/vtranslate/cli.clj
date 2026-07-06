@@ -66,10 +66,10 @@
    :commands
    [{:name "translate" :aliases #{"tr"}
      :summary "translate a media file's audio into subtitles"
-     :usage   "vtranslate translate <source> <target-lang> [--source-lang en] [--format srt|vtt]"
+     :usage   "vtranslate translate <source> <target-lang> [--source-lang auto] [--format srt|vtt]"
      :args    [{:name :source      :desc "path to the media file"}
                {:name :target-lang :desc "BCP-47 target language, e.g. pt-BR"}]
-     :opts    {:source-lang {:default "en"  :desc "source language (BCP-47)"}
+     :opts    {:source-lang {:default "auto" :desc "source language (BCP-47 or auto)"}
                :format      {:default "srt" :enum #{"srt" "vtt"} :desc "subtitle format"}}
      :run     do-translate}
     {:name "version" :summary "print the CLI version"
@@ -78,20 +78,52 @@
      :run (fn [_] (println (cmd/help-text root-command ["vtranslate"])) 0)}]})
 
 ;; --- entrypoint -------------------------------------------------------------
+;; Two levels kept apart (Stratified / CPPB boundary): `interpret` is a PURE
+;; argv -> action decision (no IO); the `perform-*` fns are the ONLY effects.
+;; `-main` reads top-down: resolve intent, then carry it out.
+
+(defn- help-requested? [tokens]
+  (boolean (some #{"help" "--help" "-h"} tokens)))
+
+(defn- interpret
+  "Pure: resolve argv against the command tree and name the action to take.
+   => {:action :help|:run|:usage-error, :cmd node, :path [names], ...}."
+  [root argv]
+  (let [{:keys [cmd path rest]} (cmd/resolve-command root (vec argv))]
+    (cond
+      (help-requested? rest) {:action :help, :cmd cmd, :path path}
+      (nil? (:run cmd))      {:action :help, :cmd cmd, :path path} ; bare branch node
+      :else
+      (let [parsed (cmd/parse cmd rest)]
+        (if (cmd/ok? parsed)
+          {:action :run,         :cmd cmd, :input (:ok parsed)}
+          {:action :usage-error, :cmd cmd, :path path, :message (:error parsed)})))))
+
+(defn- perform-help [{:keys [cmd path]}]
+  (println (cmd/help-text cmd path))
+  0)
+
+(defn- perform-run [{:keys [cmd input]}]
+  ((:run cmd) input))
+
+(defn- perform-usage-error [{:keys [cmd path message]}]
+  (binding [*out* *err*]
+    (println "error:" message)
+    (newline))
+  (println (cmd/help-text cmd path))
+  2)
+
+(def ^:private actions
+  "Action tag -> effect handler. Widen the CLI's control surface by adding a key
+   here plus an :action in `interpret` (OCP) — never by growing a cond."
+  {:help        perform-help
+   :run         perform-run
+   :usage-error perform-usage-error})
 
 (defn -main [& argv]
-  (let [{:keys [cmd path rest]} (cmd/resolve-command root-command (vec argv))
-        help? (some #{"help" "--help" "-h"} rest)]
-    (System/exit
-     (cond
-       help?             (do (println (cmd/help-text cmd path)) 0)
-       (nil? (:run cmd)) (do (println (cmd/help-text cmd path)) 0)  ; bare branch node
-       :else
-       (let [parsed (cmd/parse cmd rest)]
-         (if (cmd/ok? parsed)
-           ((:run cmd) (:ok parsed))
-           (do (binding [*out* *err*] (println "error:" (:error parsed)) (println))
-               (println (cmd/help-text cmd path)) 2)))))))
+  (let [action  (interpret root-command argv)
+        perform (actions (:action action))]
+    (System/exit (perform action))))
 
 ;; Allow direct `bb src/vtranslate/cli.clj ...` runs (no-op under `-m`).
 (when (= *file* (System/getProperty "babashka.file"))
