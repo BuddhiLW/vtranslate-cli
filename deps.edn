@@ -6,4 +6,5 @@
 ;;
 ;; bb-depsolve's coordinate regex REQUIRES :git/tag immediately before :git/sha.
 {:paths ["src"]
- :deps {io.github.BuddhiLW/vtranslate-engine {:git/tag "v0.1.0" :git/sha "cd7477e"}}}
+ :deps {metosin/malli {:mvn/version "0.16.4"}
+        io.github.BuddhiLW/vtranslate-engine {:git/tag "v0.1.0" :git/sha "cd7477e"}}}

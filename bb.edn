@@ -7,6 +7,8 @@
  :deps  {;; Result monad — the CLI threads the same railway as the engine.
          io.github.hive-agi/hive-dsl
          {:git/tag "v0.5.1" :git/sha "335869e023e1bd5bf57c72be881baa647edf4a78"}
+         ;; malli - plain metosin schema for the transport JobSpec boundary guard (bb-compatible).
+         metosin/malli {:mvn/version "0.16.4"}
          ;; EDN config IO with 0600 perm-hardening (read-edn / write-edn! :secret?).
          io.github.hive-agi/hive-di
          {:local/root "../hive-di"}}
@@ -14,4 +16,16 @@
  :tasks {vtranslate {:doc      "vtranslate CLI — config + provider + run"
                      :requires ([vtranslate.cli.main])
                      ;; forward the raw trailing args to -main (exec would swallow them)
-                     :task     (apply vtranslate.cli.main/-main *command-line-args*)}}}
+                     :task     (apply vtranslate.cli.main/-main *command-line-args*)}
+         test {:doc      "run the test suite (clojure.test)"
+               :requires ([clojure.test])
+               :task     (do
+                           (babashka.classpath/add-classpath "test")
+                           (let [nses '[vtranslate.cli.main-test
+                                        vtranslate.cli.engine-boundary-test
+                                        vtranslate.cli.engine-test
+                                        vtranslate.cli.config-doctor-test
+                                        vtranslate.cli.job-spec-test]]
+                             (apply require nses)
+                             (let [s (apply clojure.test/run-tests nses)]
+                               (System/exit (if (pos? (+ (:fail s) (:error s))) 1 0)))))}}}

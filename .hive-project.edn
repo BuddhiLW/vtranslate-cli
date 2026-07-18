@@ -23,4 +23,5 @@
  ;; Hot-reload off: bb scripts run fresh per invocation, no JVM to reload into.
  :hot-reload false
 
- :presets-path nil}
+ :presets-path nil 
+ :carto {:source-roots ["src" "test"]}}

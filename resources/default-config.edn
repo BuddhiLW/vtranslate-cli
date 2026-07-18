@@ -5,18 +5,21 @@
 ;; Provider keys MUST match what the engine registries dispatch on (resolve-*).
 ;; SECRETS ARE NEVER STORED HERE — only :secret-env, the NAME of the env var that
 ;; holds the key (resolved by the engine adapter at the HTTP boundary).
-{:providers {:transcriber :whisper-local   ; no engine adapter yet (M3) -> fail-loud at run
-             :translator  :venice           ; LLM translation via Venice (preferred, cheap)
-             :composer    :none}            ; :none sidecar | :soft embed | :hard burn-in
+{:providers {:transcriber  :whisper-local   ; no engine adapter yet (M3) -> fail-loud at run
+             :translator   :venice          ; LLM translation via Venice (preferred, cheap)
+             :comprehender :venice          ; video digest: glossary + Burke pentad
+             :composer     :none}           ; :none sidecar | :soft embed | :hard burn-in
 
  ;; Active per-adapter opts the engine reads at run time.
  :translator-opts {:model   "gemma-4-uncensored"     ; uncensored multilingual (256k ctx)
                    :window  40                        ; target cues per request
                    :context 4}                        ; neighbour cues sent as context
 
+ :comprehender-opts {:model "gemma-4-uncensored"}     ; whole-transcript digest
+
  ;; Video compositing opts (used when :composer is :hard).
  :composer-opts {:font-size 28                        ; burn-in font size (px)
-                 :wrap      42}                        ; word-wrap width (chars)
+                 :wrap      42}                       ; word-wrap width (chars)
 
  :registry
  {:transcriber
@@ -38,4 +41,15 @@
    :deepl      {:api-url    "https://api-free.deepl.com/v2/translate"
                 :secret-env "VTRANSLATE_DEEPL_API_KEY"}
    :argos      {:offline true :binary "argos-translate"
-                :note "local Argos Translate — install the binary"}}}}
+                :note "local Argos Translate — install the binary"}}
+  :comprehender
+  {:openrouter {:api-url    "https://openrouter.ai/api/v1/chat/completions"
+                :secret-env "OPENROUTER_API_KEY"
+                :default-model "z-ai/glm-5.2"
+                :note "whole-transcript glossary + Burke pentad via OpenRouter."}
+   :venice     {:api-url    "https://api.venice.ai/api/v1/chat/completions"
+                :secret-env "VENICE_API_KEY"
+                :default-model "gemma-4-uncensored"
+                :note "whole-transcript glossary + Burke pentad via Venice."}
+   :none       {:offline true
+                :note "disable video digest grounding"}}}}

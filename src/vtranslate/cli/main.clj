@@ -13,15 +13,23 @@
             [hive-dsl.result :as r]
             [vtranslate.cli.config :as config]
             [vtranslate.cli.engine :as engine]
-            [babashka.fs :as fs]))
+            [babashka.fs :as fs]
+            [vtranslate.cli.engine-classpath :as classpath]
+            [vtranslate.cli.job-spec :as js]))
 
 (defn- emit
   "Print a Result for humans; return an exit code (0 ok / 1 err). A non-nil ok
-   value is printed (strings raw, data pretty)."
+   value is printed (strings raw, data pretty). On err any carried engine :err
+   stream is echoed raw, then the structured Result (sans :err) is printed — both
+   to stderr."
   [res]
   (if (r/ok? res)
     (do (when-let [v (:ok res)] (if (string? v) (println v) (pp/pprint v))) 0)
-    (do (binding [*out* *err*] (println "error:" (pr-str res))) 1)))
+    (binding [*out* *err*]
+      (when-let [e (:err res)]
+        (when-not (str/blank? e) (println (str/trimr e))))
+      (println "error:" (pr-str (dissoc res :err)))
+      1)))
 
 (defn- env-set? [v] (boolean (not-empty (System/getenv (str v)))))
 
@@ -50,7 +58,7 @@
         port (config/resolve-port port-word)]
     (if port
       (emit (config/use-provider! port (keyword provider)))
-      (emit (r/err :error/unknown-port {:port port-word :known ["asr" "mt"]})))))
+      (emit (r/err :error/unknown-port {:port port-word :known ["asr" "mt" "digest"]})))))
 
 (defn- print-port-providers [cfg port]
   (println (str "\n" (name port) "  (active: " (get-in cfg [:providers port]) ")"))
@@ -69,9 +77,16 @@
   (let [[port-word] (:args m)]
     (emit (r/let-ok [cfg (config/effective)]
             (let [ports (if-let [p (config/resolve-port port-word)]
-                          [p] [:transcriber :translator])]
+                          [p] [:transcriber :translator :comprehender])]
               (run! #(print-port-providers cfg %) ports)
               (r/ok nil))))))
+
+(defn- cmd-doctor [_]
+  (emit (r/let-ok [report (config/doctor)]
+          (let [spec {:config {:addons (:addons report)}}]
+            (r/ok (assoc report
+                         :engine-dir (engine/engine-dir)
+                         :engine-command (classpath/engine-command spec)))))))
 
 ;; --- run (positional: source target [source-lang|auto] [format]) ----------------
 
@@ -119,16 +134,15 @@
       (let [sub-out   (output-path source target fmt output)
             video-out (when mux? (video-output-path source target))]
         (emit
-         (write-rendered
-          (engine/run-job
-           (cond-> {:job-id          (str "cli-" (System/currentTimeMillis))
-                    :source          source
-                    :source-language (or source-lang "auto")
-                    :target-language target
-                    :format          (keyword "format" fmt)
-                    :config          (if mux? {:composer mux} {})}
-             mux? (assoc :output video-out)))
-          sub-out))))))
+         (r/let-ok [spec (js/validate
+                          (js/build-job-spec {:job-id          (str "cli-" (System/currentTimeMillis))
+                                              :source          source
+                                              :target          target
+                                              :source-language source-lang
+                                              :format          fmt
+                                              :mux             (when mux? mux)
+                                              :output          video-out}))]
+           (write-rendered (engine/run-job spec) sub-out)))))))
 
 ;; --- dispatch ---------------------------------------------------------------
 
@@ -139,8 +153,9 @@
   (println "  config show [raw]                show effective (or raw user) config")
   (println "  config get <dotted.key>          read a value, e.g. providers.translator")
   (println "  config set <dotted.key> <edn>    set a value, e.g. providers.translator :deepl")
-  (println "  provider use <asr|mt> <name>     select a provider (validated, persisted)")
-  (println "  provider list [asr|mt]           list providers; * = active, secret-env status")
+  (println "  provider use <asr|mt|digest> <name>  select a provider (validated, persisted)")
+  (println "  provider list [asr|mt|digest]        list providers; * = active, secret-env status")
+  (println "  doctor                           show providers, models, keys, engine aliases")
   (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]")
   (println "                                   translate; format = srt|vtt, output defaults beside source.")
   (println "                                   --mux hard burns subs in; soft embeds a selectable track (both .mp4)")
@@ -154,6 +169,7 @@
    {:cmds ["config" "set"]    :fn cmd-config-set}
    {:cmds ["provider" "use"]  :fn cmd-provider-use}
    {:cmds ["provider" "list"] :fn cmd-provider-list}
+   {:cmds ["doctor"]          :fn cmd-doctor}
    {:cmds ["run"]             :fn cmd-run
     :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in)"}}}
    {:cmds []                  :fn cmd-help}])
