@@ -32,7 +32,10 @@
             :output          "/v/movie.pt-BR.mp4"}
            (js/build-job-spec {:job-id "cli-42" :source "/v/movie.mkv" :target "pt-BR"
                                :source-language "en" :format "vtt"
-                               :mux :soft :output "/v/movie.pt-BR.mp4"})))))
+                               :mux :soft :output "/v/movie.pt-BR.mp4"}))))
+  (testing "--mux both carries :both through unchanged"
+    (is (= {:composer :both}
+           (:config (js/build-job-spec (assoc plain-inputs :mux :both :output "/v/movie.pt-BR.mp4")))))))
 
 (deftest build-job-spec-omits-asset-kind
   (testing "the CLI never sets :asset-kind; the engine infers media kind from the source"
@@ -60,7 +63,9 @@
       (is (r/err? (js/validate (assoc good :format :srt))))
       (is (r/err? (js/validate (assoc good :format "srt")))))
     (testing "an unknown composer is rejected"
-      (is (r/err? (js/validate (assoc good :config {:composer :bogus})))))))
+      (is (r/err? (js/validate (assoc good :config {:composer :bogus})))))
+    (testing ":both is an accepted composer"
+      (is (r/ok? (js/validate (assoc good :config {:composer :both})))))))
 
 (deftest asset-kind-is-optional-and-constrained
   (let [good (js/build-job-spec plain-inputs)]
@@ -75,6 +80,7 @@
     (doseq [[label valid? spec]
             [["minimal plain spec"        true  good]
              ["with mux composer"         true  (assoc good :config {:composer :hard} :output "a.mp4")]
+             ["with both composer"        true  (assoc good :config {:composer :both} :output "a.mp4")]
              ["explicit video asset-kind" true  (assoc good :asset-kind :media/video)]
              ["missing :config"           false (dissoc good :config)]
              ["missing :target-language"  false (dissoc good :target-language)]

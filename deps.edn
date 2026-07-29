@@ -1,10 +1,14 @@
-;; NOT loaded by the babashka runtime (the CLI runs on bb via bb.edn). This file
+;; NOT loaded by the local babashka runtime (dev runs use bb.edn). This file
 ;; exists so bb-depsolve has a git coordinate to manage: when the engine releases
 ;; a new tag, `bb sync --org BuddhiLW --apply` (run from the vtranslate/ root)
 ;; rewrites the :git/tag + :git/sha below. It also pins the engine version for
-;; the future `-Sdeps` packaged distribution (carded).
+;; the future `-Sdeps` packaged distribution (carded), and it is the classpath a
+;; `bbin install` wrapper resolves — hence the runtime deps mirror bb.edn's and
+;; :paths carries resources/default-config.edn.
 ;;
 ;; bb-depsolve's coordinate regex REQUIRES :git/tag immediately before :git/sha.
-{:paths ["src"]
+{:paths ["src" "resources"]
  :deps {metosin/malli {:mvn/version "0.16.4"}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
+        io.github.hive-agi/hive-di {:mvn/version "0.3.1"}
         io.github.BuddhiLW/vtranslate-engine {:git/tag "v0.1.0" :git/sha "cd7477e"}}}

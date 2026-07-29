@@ -24,4 +24,4 @@
  :hot-reload false
 
  :presets-path nil 
- :carto {:source-roots ["src" "test"]}}
+ :carto {:source-roots ["resources" "src" "test"]}}

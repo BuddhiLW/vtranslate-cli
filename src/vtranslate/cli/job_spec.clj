@@ -23,7 +23,7 @@
     (fn [k] (and (qualified-keyword? k) (= "format" (namespace k))))]])
 
 (def ConfigSpec
-  [:map [:composer {:optional true} [:enum :soft :hard]]])
+  [:map [:composer {:optional true} [:enum :soft :hard :both]]])
 
 (def JobSpec
   [:map {:closed true}
@@ -38,9 +38,9 @@
 
 (defn build-job-spec
   "Pure: argv-derived inputs -> a JobSpec transport map (unvalidated). `format` is
-   a plain string promoted to a :format/* keyword. `mux` is nil|:soft|:hard; when
-   set it fills :config's :composer and, together with `output`, an :output video
-   sink. Leaves :asset-kind unset."
+   a plain string promoted to a :format/* keyword. `mux` is nil|:soft|:hard|:both;
+   when set it fills :config's :composer and, together with `output`, an :output
+   video sink. Leaves :asset-kind unset."
   [{:keys [job-id source target source-language format mux output]}]
   (cond-> {:job-id          job-id
            :source          source

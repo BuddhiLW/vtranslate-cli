@@ -1,7 +1,8 @@
 (ns vtranslate.cli.engine-boundary-test
   (:require [clojure.test :refer [deftest testing is]]
             [hive-dsl.result :as r]
-            [vtranslate.cli.engine :as engine]))
+            [vtranslate.cli.engine :as engine]
+            [vtranslate.cli.engine-classpath :as classpath]))
 
 (def ^:private parse-result @#'engine/parse-result)
 
@@ -40,3 +41,30 @@
       (is (r/ok? res))
       (is (= "SUB" (get-in res [:ok :rendered])))
       (is (= {:id "j1" :state :job/completed} (get-in res [:ok :job]))))))
+
+(deftest resolve-engine-dir-prefers-env-override
+  (testing "env override wins even when the sibling checkout exists"
+    (is (= "/opt/engine" (engine/resolve-engine-dir "/opt/engine" true)))))
+
+(deftest resolve-engine-dir-falls-back-to-existing-sibling
+  (testing "no env override + existing sibling => sibling dir"
+    (is (= "../vtranslate-engine" (engine/resolve-engine-dir nil true)))
+    (is (= "../vtranslate-engine" (engine/resolve-engine-dir "" true)))))
+
+(deftest resolve-engine-dir-yields-nil-without-local-checkout
+  (testing "no env override + missing sibling => nil (pinned git fallback)"
+    (is (nil? (engine/resolve-engine-dir nil false)))))
+
+(deftest engine-invocation-uses-local-checkout-when-resolvable
+  (with-redefs [engine/engine-dir (constantly "/opt/engine")
+                classpath/engine-alias-env (constantly nil)]
+    (let [{:keys [dir command]} (engine/engine-invocation {})]
+      (is (= "/opt/engine" dir))
+      (is (= "-M:ffmpeg:whisper-jni:run" (last command))))))
+
+(deftest engine-invocation-falls-back-to-pinned-coordinate
+  (with-redefs [engine/engine-dir (constantly nil)]
+    (let [{:keys [dir command]} (engine/engine-invocation {})]
+      (is (nil? dir))
+      (is (= "-Sdeps" (nth command 1)))
+      (is (= "-M:vtranslate-engine" (last command))))))

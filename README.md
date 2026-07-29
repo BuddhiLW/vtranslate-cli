@@ -4,6 +4,16 @@ A [babashka](https://babashka.org) CLI over **vtranslate-engine**. It edits the
 config that selects providers, then shells the engine to run a job. The engine
 owns all domain logic; this is a thin driving adapter (argv → config/spec → engine).
 
+## Install
+
+```bash
+bbin install io.github.BuddhiLW/vtranslate-cli
+```
+
+Requires [bbin](https://github.com/babashka/bbin); puts a `vtranslate` script on
+`~/.babashka/bbin/bin` (add it to `PATH`). The engine itself is a sibling JVM
+project — point `VTRANSLATE_ENGINE_DIR` at its checkout (see *Engine bridge*).
+
 ## Arguments are positional (no flags)
 
 Following the [Bonzai](https://github.com/rwxrob/bonzai) command-tree style —

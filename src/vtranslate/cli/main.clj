@@ -14,7 +14,6 @@
             [vtranslate.cli.config :as config]
             [vtranslate.cli.engine :as engine]
             [babashka.fs :as fs]
-            [vtranslate.cli.engine-classpath :as classpath]
             [vtranslate.cli.job-spec :as js]))
 
 (defn- emit
@@ -83,10 +82,10 @@
 
 (defn- cmd-doctor [_]
   (emit (r/let-ok [report (config/doctor)]
-          (let [spec {:config {:addons (:addons report)}}]
+          (let [inv (engine/engine-invocation {:config {:addons (:addons report)}})]
             (r/ok (assoc report
-                         :engine-dir (engine/engine-dir)
-                         :engine-command (classpath/engine-command spec)))))))
+                         :engine-dir (:dir inv)
+                         :engine-command (:command inv)))))))
 
 ;; --- run (positional: source target [source-lang|auto] [format]) ----------------
 
@@ -126,7 +125,7 @@
         fmt   (or fmt "srt")
         mux   (some-> (get-in m [:opts :mux]) keyword)
         mux?  (and mux (not= :none mux))
-        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]"]
+        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard|both]"]
     (cond
       (nil? source) (emit (r/err :error/missing-source {:hint usage}))
       (nil? target) (emit (r/err :error/missing-target {:hint usage}))
@@ -156,9 +155,10 @@
   (println "  provider use <asr|mt|digest> <name>  select a provider (validated, persisted)")
   (println "  provider list [asr|mt|digest]        list providers; * = active, secret-env status")
   (println "  doctor                           show providers, models, keys, engine aliases")
-  (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard]")
+  (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard|both]")
   (println "                                   translate; format = srt|vtt, output defaults beside source.")
   (println "                                   --mux hard burns subs in; soft embeds a selectable track (both .mp4)")
+  (println "                                   --mux both writes soft+hard variants: <out>.soft.mp4, <out>.hard.mp4")
   0)
 
 (def ^:private table
@@ -171,7 +171,7 @@
    {:cmds ["provider" "list"] :fn cmd-provider-list}
    {:cmds ["doctor"]          :fn cmd-doctor}
    {:cmds ["run"]             :fn cmd-run
-    :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in)"}}}
+    :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in) | both (two files)"}}}
    {:cmds []                  :fn cmd-help}])
 
 (defn -main [& args]

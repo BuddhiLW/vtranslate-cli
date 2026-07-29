@@ -5,14 +5,17 @@
 ;; owns argv, config-file editing, and output formatting.
 {:paths ["src" "resources"]
  :deps  {;; Result monad — the CLI threads the same railway as the engine.
-         io.github.hive-agi/hive-dsl
-         {:git/tag "v0.5.1" :git/sha "335869e023e1bd5bf57c72be881baa647edf4a78"}
+         io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
          ;; malli - plain metosin schema for the transport JobSpec boundary guard (bb-compatible).
          metosin/malli {:mvn/version "0.16.4"}
          ;; EDN config IO with 0600 perm-hardening (read-edn / write-edn! :secret?).
-         io.github.hive-agi/hive-di
-         {:local/root "../hive-di"}}
+         ;; A machine-local :local/root override belongs in local.deps.edn
+         ;; (gitignored) — never a host-absolute path in a tracked file.
+         io.github.hive-agi/hive-di {:mvn/version "0.3.1"}}
  ;; babashka.cli / babashka.fs / babashka.process are built into bb — no dep.
+ ;; bbin install io.github.BuddhiLW/vtranslate-cli reads this entry point; the
+ ;; installed wrapper resolves the classpath from deps.edn, NOT from :deps here.
+ :bbin/bin {vtranslate {:main-opts ["-m" "vtranslate.cli.main"]}}
  :tasks {vtranslate {:doc      "vtranslate CLI — config + provider + run"
                      :requires ([vtranslate.cli.main])
                      ;; forward the raw trailing args to -main (exec would swallow them)
@@ -25,7 +28,8 @@
                                         vtranslate.cli.engine-boundary-test
                                         vtranslate.cli.engine-test
                                         vtranslate.cli.config-doctor-test
-                                        vtranslate.cli.job-spec-test]]
+                                        vtranslate.cli.job-spec-test
+                                        vtranslate.cli.adapters.addon-classpath.local-deps-test]]
                              (apply require nses)
                              (let [s (apply clojure.test/run-tests nses)]
                                (System/exit (if (pos? (+ (:fail s) (:error s))) 1 0)))))}}}
