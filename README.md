@@ -4,6 +4,9 @@ A [babashka](https://babashka.org) CLI over **vtranslate-engine**. It edits the
 config that selects providers, then shells the engine to run a job. The engine
 owns all domain logic; this is a thin driving adapter (argv → config/spec → engine).
 
+Two adapters drive that same core: the `vtranslate` command, and a local web
+control panel (`bb web`) for when clicking beats retyping a path.
+
 ## Install
 
 ```bash
@@ -29,6 +32,25 @@ vtranslate provider use <asr|mt> <name>     select a provider (validated, persis
 vtranslate provider list [asr|mt]           list providers; * = active, secret status
 vtranslate run <source> <target-lang> [source-lang] [format]
 ```
+
+## Web control panel
+
+```bash
+bb web           # http://127.0.0.1:7777
+bb web 8080      # another port
+```
+
+Submit a job (source path, target language, format, optional mux), watch it run
+with the engine's diagnostics streaming in, download the subtitle when it lands,
+and switch providers from the same page — the panel writes the same config file
+`provider use` does, so the CLI and the panel never disagree.
+
+It binds to **loopback only, on purpose**: it runs commands and reads files on
+the host, so it must not be reachable from off the machine. There is no auth —
+do not put it behind a public listener or a tunnel.
+
+Jobs live in memory for the life of the server; the artifacts it writes are the
+same sidecar files the CLI produces, beside the source.
 
 ## Swapping providers
 

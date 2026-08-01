@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vtranslate</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #fff; --ink: #1a1a19; --muted: #6b6b66;
+    --line: #e4e4e0; --accent: #2f6f4f; --warn: #a4451f; --code: #f4f4f1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161a; --panel: #1d1d22; --ink: #eceCe8; --muted: #9a9a94;
+      --line: #2e2e35; --accent: #6bbf8f; --warn: #e08a5f; --code: #131317;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--muted); margin: 2rem 0 .75rem; font-weight: 600; }
+  .sub { color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 1.1rem; }
+  .grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+  input, select, button {
+    font: inherit; width: 100%; padding: .5rem .6rem; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  button {
+    background: var(--accent); color: #fff; border-color: transparent;
+    font-weight: 600; cursor: pointer; width: auto; padding: .55rem 1.2rem;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-top: .9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th { text-align: left; font-size: .72rem; text-transform: uppercase;
+       letter-spacing: .06em; color: var(--muted); padding: .4rem .5rem; font-weight: 600; }
+  td { padding: .55rem .5rem; border-top: 1px solid var(--line); vertical-align: top; }
+  .pill { display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+          font-size: .72rem; font-weight: 600; border: 1px solid var(--line); }
+  .queued    { color: var(--muted); }
+  .running   { color: var(--accent); border-color: var(--accent); }
+  .succeeded { color: #fff; background: var(--accent); border-color: transparent; }
+  .failed    { color: #fff; background: var(--warn); border-color: transparent; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 7px;
+        padding: .6rem .7rem; overflow-x: auto; font-size: .78rem; margin: .5rem 0 0;
+        max-height: 220px; white-space: pre-wrap; }
+  a { color: var(--accent); }
+  .err { color: var(--warn); font-size: .85rem; margin-top: .6rem; }
+  .muted { color: var(--muted); }
+  .stack { display: grid; gap: .5rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>vtranslate</h1>
+  <p class="sub" id="engine-line">…</p>
+
+  <h2>New job</h2>
+  <div class="panel">
+    <div class="grid">
+      <div><label for="source">Source file (path on this machine)</label>
+        <input id="source" placeholder="/home/you/clip.mp4 or subs.srt"></div>
+      <div><label for="target">Target language</label>
+        <input id="target" value="pt" placeholder="pt"></div>
+      <div><label for="srclang">Source language</label>
+        <input id="srclang" value="auto" placeholder="auto"></div>
+      <div><label for="format">Subtitle format</label>
+        <select id="format"><option>srt</option><option>vtt</option></select></div>
+      <div><label for="mux">Attach to video</label>
+        <select id="mux">
+          <option value="">no (sidecar only)</option>
+          <option value="soft">soft — embedded track</option>
+          <option value="hard">hard — burned in</option>
+          <option value="both">both</option>
+        </select></div>
+    </div>
+    <div class="row"><button id="run">Run</button><span id="submit-err" class="err"></span></div>
+  </div>
+
+  <h2>Providers</h2>
+  <div class="panel"><div class="grid" id="providers"></div>
+    <div class="err" id="cfg-err"></div>
+    <p class="muted" style="margin:.9rem 0 0;font-size:.78rem" id="cfg-path"></p>
+  </div>
+
+  <h2>Jobs</h2>
+  <div class="panel">
+    <table><thead><tr>
+      <th>Job</th><th>Source → target</th><th>Status</th><th>Took</th><th>Output</th>
+    </tr></thead><tbody id="jobs">
+      <tr><td colspan="5" class="muted">No jobs yet.</td></tr>
+    </tbody></table>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const txt = await res.text();
+  let body; try { body = JSON.parse(txt); } catch { body = txt; }
+  if (!res.ok) throw body;
+  return body;
+}
+
+const errText = e =>
+  typeof e === "string" ? e
+  : e && e.explain ? JSON.stringify(e.explain)
+  : e && e.error   ? e.error
+  : JSON.stringify(e);
+
+const secs = ms => ms == null ? "" : (ms / 1000).toFixed(1) + "s";
+
+function renderJobs(jobs) {
+  const tb = $("jobs");
+  if (!jobs.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="muted">No jobs yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML = jobs.map(j => {
+    const req = j.request || {};
+    const out = j.result && j.result.output;
+    const link = j.status === "succeeded" && out
+      ? `<a href="/api/jobs/${encodeURIComponent(j.id)}/subtitle">download</a>
+         <div class="muted" style="font-size:.75rem">${esc(out)}</div>`
+      : j.status === "failed" ? `<span class="muted">—</span>` : "";
+    const detail = (j.log || j.error)
+      ? `<tr><td colspan="5" style="border-top:none;padding-top:0">
+           ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
+           ${j.log ? `<pre>${esc(j.log)}</pre>` : ""}</td></tr>`
+      : "";
+    return `<tr>
+      <td><code style="font-size:.78rem">${esc(j.id)}</code></td>
+      <td>${esc((req.source || "").split("/").pop())}
+          <span class="muted">→ ${esc(req.target)}</span></td>
+      <td><span class="pill ${esc(j.status)}">${esc(j.status)}</span></td>
+      <td class="muted">${secs(j["duration-ms"])}</td>
+      <td>${link}</td></tr>${detail}`;
+  }).join("");
+}
+
+function renderProviders(cfg) {
+  const ports = { transcriber: "asr", translator: "mt", comprehender: "digest" };
+  $("providers").innerHTML = Object.entries(ports).map(([port, word]) => {
+    const entries = (cfg.registry || {})[port] || [];
+    const active = (cfg.providers || {})[port];
+    const opts = entries.map(e => {
+      const flag = e["secret-env"] && !e["secret-set"] ? "  (key unset)" : "";
+      return `<option value="${esc(e.id)}"${e.id === active ? " selected" : ""}>${esc(e.id)}${esc(flag)}</option>`;
+    }).join("");
+    return `<div><label>${esc(port)}</label>
+      <select data-port="${esc(word)}">${opts}</select></div>`;
+  }).join("");
+  $("cfg-path").textContent = "config: " + (cfg["config-path"] || "");
+  document.querySelectorAll("#providers select").forEach(sel => {
+    sel.onchange = async () => {
+      $("cfg-err").textContent = "";
+      try {
+        renderProviders(await api("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ port: sel.dataset.port, provider: sel.value })
+        }));
+      } catch (e) { $("cfg-err").textContent = errText(e); }
+    };
+  });
+}
+
+$("run").onclick = async () => {
+  $("submit-err").textContent = "";
+  $("run").disabled = true;
+  const body = {
+    source: $("source").value.trim(),
+    target: $("target").value.trim(),
+    "source-language": $("srclang").value.trim() || null,
+    format: $("format").value,
+    mux: $("mux").value || null
+  };
+  try {
+    await api("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    await refresh();
+  } catch (e) { $("submit-err").textContent = errText(e); }
+  finally { $("run").disabled = false; }
+};
+
+async function refresh() {
+  try { renderJobs(await api("/api/jobs")); } catch (e) { /* transient */ }
+}
+
+(async () => {
+  try {
+    const h = await api("/api/health");
+    const dir = h.engine && h.engine.dir;
+    $("engine-line").textContent = dir
+      ? "engine: " + dir
+      : "engine: pinned git coordinate (first run resolves deps — expect a wait)";
+  } catch { $("engine-line").textContent = "engine: unreachable"; }
+  try { renderProviders(await api("/api/config")); }
+  catch (e) { $("cfg-err").textContent = errText(e); }
+  await refresh();
+  setInterval(refresh, 1500);
+})();
+</script>
+</body>
+</html>

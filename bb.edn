@@ -1,8 +1,10 @@
-;; vtranslate CLI — a babashka wrapper over vtranslate-engine. One driving
-;; adapter: parse argv -> read/mutate ~/.config/vtranslate/config.edn -> build a
-;; job spec -> shell the engine subprocess -> format its EDN Result. The engine
-;; (a sibling JVM project) owns all domain logic + provider resolution; the CLI
-;; owns argv, config-file editing, and output formatting.
+;; vtranslate CLI — a babashka wrapper over vtranslate-engine. Two driving
+;; adapters over one core: parse argv (or serve HTTP) -> read/mutate
+;; ~/.config/vtranslate/config.edn -> build a job spec -> shell the engine
+;; subprocess -> format its EDN Result. The engine (a sibling JVM project) owns
+;; all domain logic + provider resolution; the CLI owns argv, config-file
+;; editing, and output formatting.
+;; `bb web` serves the local control panel over the same core.
 {:paths ["src" "resources"]
  :deps  {;; Result monad — the CLI threads the same railway as the engine.
          io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
@@ -20,6 +22,9 @@
                      :requires ([vtranslate.cli.main])
                      ;; forward the raw trailing args to -main (exec would swallow them)
                      :task     (apply vtranslate.cli.main/-main *command-line-args*)}
+         web {:doc      "local control panel on 127.0.0.1 (default port 7777)"
+              :requires ([vtranslate.cli.web.server])
+              :task     (apply vtranslate.cli.web.server/-main *command-line-args*)}
          test {:doc      "run the test suite (clojure.test)"
                :requires ([clojure.test])
                :task     (do
@@ -29,6 +34,9 @@
                                         vtranslate.cli.engine-test
                                         vtranslate.cli.config-doctor-test
                                         vtranslate.cli.job-spec-test
+                                        vtranslate.cli.web.job-test
+                                        vtranslate.cli.web.routes-test
+                                        vtranslate.cli.web.runner-test
                                         vtranslate.cli.adapters.addon-classpath.local-deps-test]]
                              (apply require nses)
                              (let [s (apply clojure.test/run-tests nses)]
