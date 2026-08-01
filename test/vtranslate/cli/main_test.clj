@@ -3,12 +3,16 @@
             [clojure.string :as str]
             [babashka.cli :as cli]
             [hive-dsl.result :as r]
-            [vtranslate.cli.main :as main]))
+            [vtranslate.cli.main :as main]
+            [vtranslate.cli.output :as out]))
 
 (def ^:private table @#'main/table)
 (def ^:private emit @#'main/emit)
-(def ^:private output-path @#'main/output-path)
-(def ^:private video-output-path @#'main/video-output-path)
+
+;; Path derivation moved to vtranslate.cli.output when the HTTP adapter began
+;; sharing it; the assertions below are unchanged from when it lived in main.
+(def ^:private output-path out/subtitle-path)
+(def ^:private video-output-path out/video-path)
 
 (defn- dispatch
   "Route argv through the SHIPPED babashka.cli table; returns the exit code the

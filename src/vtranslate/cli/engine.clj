@@ -44,7 +44,7 @@
      {:dir dir :command (classpath/engine-command source spec)}
      {:dir nil :command (classpath/pinned-engine-command)})))
 
-(defn- parse-result
+(defn parse-result
   "Parse the engine subprocess output into a Result. The engine prints exactly
    one EDN Result via prn on stdout and exits 0/1; tagged records are read as
    their map payload. A parsed (r/err ...) passes through; a parsed (r/ok ...)

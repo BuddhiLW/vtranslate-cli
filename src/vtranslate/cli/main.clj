@@ -13,8 +13,8 @@
             [hive-dsl.result :as r]
             [vtranslate.cli.config :as config]
             [vtranslate.cli.engine :as engine]
-            [babashka.fs :as fs]
-            [vtranslate.cli.job-spec :as js]))
+            [vtranslate.cli.job-spec :as js]
+            [vtranslate.cli.output :as out]))
 
 (defn- emit
   "Print a Result for humans; return an exit code (0 ok / 1 err). A non-nil ok
@@ -89,37 +89,6 @@
 
 ;; --- run (positional: source target [source-lang|auto] [format]) ----------------
 
-(defn- output-path [source target fmt output]
-  (or output
-      (let [p      (fs/path source)
-            parent (fs/parent p)
-            stem   (fs/strip-ext (fs/file-name p))]
-        (str (fs/path (or parent (fs/path ".")) (str stem "." target "." fmt))))))
-
-(defn- video-output-path
-  "mp4 sink beside the source (…/stem.<target>.mp4) for a muxed/burned video."
-  [source target]
-  (let [p      (fs/path source)
-        parent (fs/parent p)
-        stem   (fs/strip-ext (fs/file-name p))]
-    (str (fs/path (or parent (fs/path ".")) (str stem "." target ".mp4")))))
-
-(defn- write-rendered [result output]
-  (if (r/err? result)
-    result
-    (let [rendered (get-in result [:ok :rendered])
-          video    (get-in result [:ok :output-video])]
-      (if (string? rendered)
-        (do
-          (when-let [parent (fs/parent (fs/path output))]
-            (fs/create-dirs parent))
-          (spit output rendered)
-          (r/ok (cond-> {:output output
-                         :job    (select-keys (get-in result [:ok :job])
-                                              [:id :state :target-language :subtitle-id])}
-                  video (assoc :output-video video))))
-        (r/err :error/no-rendered-subtitle {:output output})))))
-
 (defn- cmd-run [m]
   (let [[source target source-lang fmt output] (:args m)
         fmt   (or fmt "srt")
@@ -130,8 +99,8 @@
       (nil? source) (emit (r/err :error/missing-source {:hint usage}))
       (nil? target) (emit (r/err :error/missing-target {:hint usage}))
       :else
-      (let [sub-out   (output-path source target fmt output)
-            video-out (when mux? (video-output-path source target))]
+      (let [sub-out   (out/subtitle-path source target fmt output)
+            video-out (when mux? (out/video-path source target))]
         (emit
          (r/let-ok [spec (js/validate
                           (js/build-job-spec {:job-id          (str "cli-" (System/currentTimeMillis))
@@ -141,7 +110,7 @@
                                               :format          fmt
                                               :mux             (when mux? mux)
                                               :output          video-out}))]
-           (write-rendered (engine/run-job spec) sub-out)))))))
+           (out/write-rendered (engine/run-job spec) sub-out)))))))
 
 ;; --- dispatch ---------------------------------------------------------------
 
