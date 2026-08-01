@@ -5,7 +5,8 @@
    provider keyword — which is exactly what the engine reads. `show` reveals
    baked-defaults <- user-file; the engine layers env/flag overrides on top at run
    time. Mutations write 0600."
-  (:require [clojure.edn :as edn]
+  (:require [babashka.process :as p]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [hive-di.file :as edn-file]
@@ -101,12 +102,42 @@
 (defn env-set? [env-name]
   (boolean (not-empty (System/getenv (str env-name)))))
 
+(defn pass-entry?
+  "Whether `path` resolves in the pass store. Runs `pass show` and keeps only
+   its exit code — the secret is never printed and never returned. A missing
+   `pass` binary is a false, not a throw.
+
+   Mirrors hive-di.pass/present?; delegate once bb.edn can pin a hive-di that
+   carries it (this repo resolves hive-di from Maven, and 0.3.1 predates it)."
+  [path]
+  (boolean
+   (when-not (str/blank? (str path))
+     (try
+       (zero? (:exit (p/sh {:out :string :err :string :continue true}
+                           "pass" "show" (str path))))
+       (catch Exception _ false)))))
+
+(defn secret-source
+  "Where this port's API key actually comes from, mirroring the precedence the
+   engine applies in adapters.support.secrets/resolve-key: a RESOLVABLE pass
+   path wins over the env var, so a stale env key cannot shadow the real one.
+   `pass-exists?` is injected so this is decidable without a pass store.
+   => :pass | :env | nil"
+  ([secret-env secret-pass] (secret-source secret-env secret-pass pass-entry?))
+  ([secret-env secret-pass pass-exists?]
+   (cond
+     (and secret-pass (pass-exists? secret-pass)) :pass
+     (and secret-env (env-set? secret-env))       :env
+     :else                                        nil)))
+
 (defn provider-diagnostic [cfg port]
   (let [active (get-in cfg [:providers port])
         registry (registry-for cfg port)
         spec (get registry active)
         opts (get cfg (keyword (str (name port) "-opts")))
-        secret-env (:secret-env spec)]
+        secret-env (:secret-env spec)
+        secret-pass (:secret-pass opts)
+        source (secret-source secret-env secret-pass)]
     {:port port
      :active active
      :known (known-providers cfg port)
@@ -117,7 +148,11 @@
      :model (or (:model opts) (:default-model spec))
      :model-path (:model-path opts)
      :secret-env secret-env
-     :secret-set? (when secret-env (env-set? secret-env))
+     :secret-pass secret-pass
+     :secret-source source
+     ;; a key resolvable from ANY source, not just the env var — reporting
+     ;; "unset" for a working pass-backed key is what this replaced.
+     :secret-set? (when (or secret-env secret-pass) (some? source))
      :opts opts
      :note (:note spec)}))
 

@@ -156,7 +156,11 @@ function renderProviders(cfg) {
     const entries = (cfg.registry || {})[port] || [];
     const active = (cfg.providers || {})[port];
     const opts = entries.map(e => {
-      const flag = e["secret-env"] && !e["secret-set"] ? "  (key unset)" : "";
+      const src = e["secret-source"];
+      const flag = e.offline ? ""
+        : src === "pass" ? "  (key via pass)"
+        : src === "env"  ? "  (key via env)"
+        : e["secret-env"] ? "  (key unset)" : "";
       return `<option value="${esc(e.id)}"${e.id === active ? " selected" : ""}>${esc(e.id)}${esc(flag)}</option>`;
     }).join("");
     return `<div><label>${esc(port)}</label>

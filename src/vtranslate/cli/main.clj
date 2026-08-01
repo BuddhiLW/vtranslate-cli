@@ -32,6 +32,19 @@
 
 (defn- env-set? [v] (boolean (not-empty (System/getenv (str v)))))
 
+(defn- secret-label
+  "How a provider's key resolves, in the precedence the engine applies: a
+   resolvable pass path beats the env var. `pass` is nil for a provider that is
+   not the active one, since the pass path is configured per PORT."
+  [spec pass]
+  (let [sec (:secret-env spec)]
+    (if-not (or sec pass)
+      ""
+      (case (config/secret-source sec pass)
+        :pass (str "  [pass " pass "]")
+        :env  (str "  [" sec " set]")
+        (str "  [" (or sec pass) " UNSET]")))))
+
 ;; --- config subcommands -----------------------------------------------------
 
 (defn- cmd-config-path [_] (println (config/config-path)) 0)
@@ -61,16 +74,15 @@
 
 (defn- print-port-providers [cfg port]
   (println (str "\n" (name port) "  (active: " (get-in cfg [:providers port]) ")"))
-  (doseq [[pid spec] (get-in cfg [:registry port])]
-    (let [active? (= pid (get-in cfg [:providers port]))
-          sec     (:secret-env spec)]
-      (println (format "  %s %-16s %s%s"
-                       (if active? "*" " ")
-                       (name pid)
-                       (or (:api-url spec) (when (:offline spec) "(offline)") "")
-                       (if sec
-                         (str "  [" sec (if (env-set? sec) " set]" " UNSET]"))
-                         ""))))))
+  (let [active (get-in cfg [:providers port])
+        pass   (get-in cfg [(keyword (str (name port) "-opts")) :secret-pass])]
+    (doseq [[pid spec] (get-in cfg [:registry port])]
+      (let [active? (= pid active)]
+        (println (format "  %s %-16s %s%s"
+                         (if active? "*" " ")
+                         (name pid)
+                         (or (:api-url spec) (when (:offline spec) "(offline)") "")
+                         (secret-label spec (when active? pass))))))))
 
 (defn- cmd-provider-list [m]
   (let [[port-word] (:args m)]

@@ -41,23 +41,34 @@
 
 ;; --- config -----------------------------------------------------------------
 
+(defn- provider-entry
+  "One selectable provider, with where its key would come from. The pass path is
+   configured per PORT (via [<port>-opts :secret-pass]), so it only describes the
+   provider currently active on that port — an inactive provider is reported on
+   its env var alone rather than borrowing another provider's pass entry."
+  [port-pass active [pid spec]]
+  (let [pass (when (= pid active) port-pass)]
+    {:id            pid
+     :api-url       (:api-url spec)
+     :offline       (boolean (:offline spec))
+     :secret-env    (:secret-env spec)
+     :secret-source (when-not (:offline spec)
+                      (some-> (config/secret-source (:secret-env spec) pass) name))}))
+
 (defn- config-view
-  "What the panel needs to render and edit routing: the active provider per port
-   and the registry it may choose from."
+  "What the panel needs to render and edit routing: the active provider per port,
+   the registry it may choose from, and how each one's key resolves."
   []
   (r/let-ok [cfg (config/effective)]
     (r/ok {:providers (:providers cfg)
-           :registry  (into {}
-                            (map (fn [[port entries]]
-                                   [port (mapv (fn [[pid spec]]
-                                                 {:id         pid
-                                                  :api-url    (:api-url spec)
-                                                  :offline    (boolean (:offline spec))
-                                                  :secret-env (:secret-env spec)
-                                                  :secret-set (when-let [e (:secret-env spec)]
-                                                                (config/env-set? e))})
-                                               entries)]))
-                            (:registry cfg))
+           :registry
+           (into {}
+                 (map (fn [[port entries]]
+                        (let [pass   (get-in cfg [(keyword (str (name port) "-opts"))
+                                                  :secret-pass])
+                              active (get-in cfg [:providers port])]
+                          [port (mapv #(provider-entry pass active %) entries)])))
+                 (:registry cfg))
            :config-path (str (config/config-path))})))
 
 (defn- patch-config!

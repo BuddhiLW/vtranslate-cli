@@ -33,6 +33,7 @@
                                         vtranslate.cli.engine-boundary-test
                                         vtranslate.cli.engine-test
                                         vtranslate.cli.config-doctor-test
+                                        vtranslate.cli.config-secret-test
                                         vtranslate.cli.job-spec-test
                                         vtranslate.cli.web.job-test
                                         vtranslate.cli.web.routes-test
