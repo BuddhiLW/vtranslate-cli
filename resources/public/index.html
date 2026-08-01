@@ -97,6 +97,13 @@
 
   <h2>Providers</h2>
   <div class="panel"><div class="grid" id="providers"></div>
+    <div class="grid" style="margin-top:.75rem">
+      <div><label for="threads">CPU threads for local ASR <span id="cores" class="muted"></span></label>
+        <div class="pick">
+          <input id="threads" type="number" min="1" step="1" placeholder="auto">
+          <button id="threads-auto" type="button" class="ghost" title="Let the adapter decide">Auto</button>
+        </div></div>
+    </div>
     <div class="err" id="cfg-err"></div>
     <p class="muted" style="margin:.9rem 0 0;font-size:.78rem" id="cfg-path"></p>
   </div>
@@ -176,20 +183,32 @@ function renderProviders(cfg) {
     return `<div><label>${esc(port)}</label>
       <select data-port="${esc(word)}">${opts}</select></div>`;
   }).join("");
+  const asr = cfg.asr || {};
+  $("cores").textContent = asr.cores ? `— ${asr.cores} available` : "";
+  if (asr.cores) $("threads").max = asr.cores;
+  $("threads").value = (asr.threads === "auto" || asr.threads == null) ? "" : asr.threads;
   $("cfg-path").textContent = "config: " + (cfg["config-path"] || "");
   document.querySelectorAll("#providers select").forEach(sel => {
-    sel.onchange = async () => {
-      $("cfg-err").textContent = "";
-      try {
-        renderProviders(await api("/api/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ port: sel.dataset.port, provider: sel.value })
-        }));
-      } catch (e) { $("cfg-err").textContent = errText(e); }
-    };
+    sel.onchange = () => patchConfig({ port: sel.dataset.port, provider: sel.value });
   });
 }
+
+async function patchConfig(body) {
+  $("cfg-err").textContent = "";
+  try {
+    renderProviders(await api("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }));
+  } catch (e) { $("cfg-err").textContent = errText(e); }
+}
+
+$("threads").onchange = () => {
+  const v = $("threads").value.trim();
+  patchConfig({ threads: v === "" ? "auto" : v });
+};
+$("threads-auto").onclick = () => patchConfig({ threads: "auto" });
 
 $("browse").onclick = async () => {
   $("submit-err").textContent = "";

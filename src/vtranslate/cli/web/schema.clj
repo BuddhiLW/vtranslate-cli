@@ -49,11 +49,16 @@
    [:error        [:maybe :any]]])
 
 (def ConfigPatch
-  "A provider re-route from the panel. `port` is the CLI's port word (asr | mt |
-   digest); `provider` is validated against the registry by config/use-provider!."
-  [:map {:closed true}
-   [:port     NonBlankString]
-   [:provider NonBlankString]])
+  "What the panel may change. Either a provider re-route — `port` is the CLI's
+   port word (asr | mt | digest) and `provider` is validated against the registry
+   by config/use-provider! — or an ASR thread budget, clamped by
+   config/set-asr-threads!."
+  [:multi {:dispatch (fn [m] (if (contains? m :threads) :threads :provider))}
+   [:threads  [:map {:closed true}
+               [:threads [:or :int NonBlankString]]]]
+   [:provider [:map {:closed true}
+               [:port     NonBlankString]
+               [:provider NonBlankString]]]])
 
 (defn conform
   "`value` if it validates against `schema`, else a humanized err.

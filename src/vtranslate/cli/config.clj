@@ -154,6 +154,42 @@
           (r/ok (str provider " key <- pass " path
                      "  (" (str/join ", " (map name ports)) ")")))))))
 
+;; --- ASR thread budget ------------------------------------------------------
+
+(defn available-cores
+  "Logical processors on this machine."
+  []
+  (.availableProcessors (Runtime/getRuntime)))
+
+(defn clamp-threads
+  "`requested` as a usable thread count, or nil meaning 'let the adapter decide'.
+   nil/:auto/\"auto\" => nil; \"max\" => every core; anything else is clamped to
+   [1, available] so the config can never ask for zero threads or more than the
+   machine has. => long | nil"
+  [requested available]
+  (cond
+    (contains? #{nil :auto "auto"} requested) nil
+    (contains? #{:max "max"} requested)       (long available)
+    :else (when-let [n (if (number? requested)
+                         (long requested)
+                         (parse-long (str/trim (str requested))))]
+            (max 1 (min n (long available))))))
+
+(defn set-asr-threads!
+  "Set — or clear, with :auto — how many CPU threads local ASR may use.
+   => (r/ok message) | (r/err :error/invalid-thread-count {...})."
+  [requested]
+  (let [cores (available-cores)
+        n     (clamp-threads requested cores)]
+    (if (and (nil? n) (not (contains? #{nil :auto "auto"} requested)))
+      (r/err :error/invalid-thread-count
+             {:requested requested :available cores
+              :hint "usage: vtranslate cpu <n|auto|max>"})
+      (r/let-ok [_ (set-path! [:transcriber-opts :threads] (or n :auto))]
+        (r/ok (if n
+                (str "asr threads -> " n "  (of " cores " cores)")
+                (str "asr threads -> auto  (adapter default; " cores " cores available)")))))))
+
 (defn secret-source
   "Where this port's API key actually comes from, mirroring the precedence the
    engine applies in adapters.support.secrets/resolve-key: a RESOLVABLE pass

@@ -59,7 +59,8 @@
 
 (defn- config-view
   "What the panel needs to render and edit routing: the active provider per port,
-   the registry it may choose from, and how each one's key resolves."
+   the registry it may choose from, how each one's key resolves, and the CPU
+   budget local ASR runs under."
   []
   (r/let-ok [cfg (config/effective)]
     (r/ok {:providers (:providers cfg)
@@ -71,18 +72,25 @@
                               active (get-in cfg [:providers port])]
                           [port (mapv #(provider-entry pass active %) entries)])))
                  (:registry cfg))
+           :asr {:threads (or (get-in cfg [:transcriber-opts :threads]) "auto")
+                 :cores   (config/available-cores)}
            :config-path (str (config/config-path))})))
 
 (defn- patch-config!
-  "Re-route one port from the panel. => Result<config-view>."
+  "Apply one panel edit — a provider re-route or the ASR thread budget — and
+   return the refreshed view. => Result<config-view>."
   [request]
   (r/let-ok [patch (schema/conform schema/ConfigPatch
-                                   (select-keys (read-json-body request) [:port :provider]))
-             port  (if-let [p (config/resolve-port (:port patch))]
-                     (r/ok p)
-                     (r/err :error/unknown-port {:port (:port patch)
-                                                 :known ["asr" "mt" "digest"]}))
-             _     (config/use-provider! port (keyword (:provider patch)))]
+                                   (select-keys (read-json-body request)
+                                                [:port :provider :threads]))
+             _     (if (contains? patch :threads)
+                     (config/set-asr-threads! (:threads patch))
+                     (r/let-ok [port (if-let [p (config/resolve-port (:port patch))]
+                                       (r/ok p)
+                                       (r/err :error/unknown-port
+                                              {:port (:port patch)
+                                               :known ["asr" "mt" "digest"]}))]
+                       (config/use-provider! port (keyword (:provider patch)))))]
     (config-view)))
 
 ;; --- jobs -------------------------------------------------------------------

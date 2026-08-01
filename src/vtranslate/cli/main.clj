@@ -91,6 +91,18 @@
       (emit (r/let-ok [cfg (config/effective)]
               (config/set-provider-secret! (get-in cfg [:providers port]) path))))))
 
+(defn- cmd-cpu
+  "cpu [n|auto|max] — how many CPU threads local ASR may use. whisper.cpp's own
+   default is 4 whatever the machine, which is why this is worth setting."
+  [m]
+  (let [[requested] (:args m)]
+    (if (str/blank? (str requested))
+      (emit (r/let-ok [cfg (config/effective)]
+              (r/ok (str "asr threads: "
+                         (or (get-in cfg [:transcriber-opts :threads]) :auto)
+                         "  (" (config/available-cores) " cores available)"))))
+      (emit (config/set-asr-threads! requested)))))
+
 (defn- print-port-providers [cfg port]
   (println (str "\n" (name port) "  (active: " (get-in cfg [:providers port]) ")"))
   (let [active (get-in cfg [:providers port])
@@ -158,6 +170,8 @@
   (println "                                   provider key mt Venice/key — applied to every")
   (println "                                   port using the provider, since the key is its own")
   (println "  provider list [asr|mt|digest]        list providers; * = active, key source shown")
+  (println "  cpu [n|auto|max]                 CPU threads for local ASR; whisper.cpp defaults to")
+  (println "                                   4 whatever the machine. Bare `cpu` shows the setting")
   (println "  doctor                           show providers, models, keys, engine aliases")
   (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard|both]")
   (println "                                   translate; format = srt|vtt, output defaults beside source.")
@@ -174,6 +188,7 @@
    {:cmds ["provider" "use"]  :fn cmd-provider-use}
    {:cmds ["provider" "key"]  :fn cmd-provider-key}
    {:cmds ["provider" "list"] :fn cmd-provider-list}
+   {:cmds ["cpu"]             :fn cmd-cpu}
    {:cmds ["doctor"]          :fn cmd-doctor}
    {:cmds ["run"]             :fn cmd-run
     :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in) | both (two files)"}}}

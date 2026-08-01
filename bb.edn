@@ -35,6 +35,7 @@
                                         vtranslate.cli.config-doctor-test
                                         vtranslate.cli.config-secret-test
                                         vtranslate.cli.config-provider-secret-test
+                                        vtranslate.cli.config-threads-test
                                         vtranslate.cli.job-spec-test
                                         vtranslate.cli.web.dialog-test
                                         vtranslate.cli.web.job-test
