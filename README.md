@@ -64,6 +64,25 @@ vtranslate provider list                  # confirm the active (*) provider
 vtranslate run movie.mp4 pt-BR en         # translate to Brazilian Portuguese
 ```
 
+### Keys live in `pass`, not in the environment
+
+```bash
+vtranslate provider key mt Venice/key     # translator's provider reads pass Venice/key
+```
+
+A **resolvable pass entry beats the env var**, so an old `VENICE_API_KEY` left
+exported cannot shadow the real key — a failure mode that otherwise surfaces as
+an opaque 401 from the provider. `provider list` shows which source won:
+
+```
+* venice   https://api.venice.ai/api/v1/chat/completions  [pass Venice/key]
+  deepl    https://api-free.deepl.com/v2/translate        [VTRANSLATE_DEEPL_API_KEY UNSET]
+```
+
+The key belongs to the **provider**, not the port, so `provider key` writes it to
+every port currently using that provider (Venice translating *and* digesting =
+one key), and a port switching onto a provider inherits the entry it already has.
+
 ## Config + secrets
 
 - **Location:** `$XDG_CONFIG_HOME/vtranslate/config.edn`, else `~/.config/vtranslate/config.edn`.

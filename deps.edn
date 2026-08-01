@@ -10,5 +10,5 @@
 {:paths ["src" "resources"]
  :deps {metosin/malli {:mvn/version "0.16.4"}
         io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
-        io.github.hive-agi/hive-di {:mvn/version "0.3.1"}
+        io.github.hive-agi/hive-di {:mvn/version "0.4.0"}
         io.github.BuddhiLW/vtranslate-engine {:git/tag "v0.1.0" :git/sha "cd7477e"}}}

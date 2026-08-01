@@ -13,7 +13,7 @@
          ;; EDN config IO with 0600 perm-hardening (read-edn / write-edn! :secret?).
          ;; A machine-local :local/root override belongs in local.deps.edn
          ;; (gitignored) — never a host-absolute path in a tracked file.
-         io.github.hive-agi/hive-di {:mvn/version "0.3.1"}}
+         io.github.hive-agi/hive-di {:mvn/version "0.4.0"}}
  ;; babashka.cli / babashka.fs / babashka.process are built into bb — no dep.
  ;; bbin install io.github.BuddhiLW/vtranslate-cli reads this entry point; the
  ;; installed wrapper resolves the classpath from deps.edn, NOT from :deps here.
@@ -34,6 +34,7 @@
                                         vtranslate.cli.engine-test
                                         vtranslate.cli.config-doctor-test
                                         vtranslate.cli.config-secret-test
+                                        vtranslate.cli.config-provider-secret-test
                                         vtranslate.cli.job-spec-test
                                         vtranslate.cli.web.job-test
                                         vtranslate.cli.web.routes-test

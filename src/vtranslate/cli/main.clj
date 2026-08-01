@@ -72,6 +72,25 @@
       (emit (config/use-provider! port (keyword provider)))
       (emit (r/err :error/unknown-port {:port port-word :known ["asr" "mt" "digest"]})))))
 
+(defn- cmd-provider-key
+  "provider key <asr|mt|digest> <pass-path> — point the port's ACTIVE provider at
+   a pass entry. Every other port on the same provider is pointed at it too,
+   because the key belongs to the provider, not the port."
+  [m]
+  (let [[port-word path] (:args m)
+        port (config/resolve-port port-word)]
+    (cond
+      (nil? port)
+      (emit (r/err :error/unknown-port {:port port-word :known ["asr" "mt" "digest"]}))
+
+      (str/blank? (str path))
+      (emit (r/err :error/missing-pass-path
+                   {:hint "usage: vtranslate provider key <asr|mt|digest> <pass-path>"}))
+
+      :else
+      (emit (r/let-ok [cfg (config/effective)]
+              (config/set-provider-secret! (get-in cfg [:providers port]) path))))))
+
 (defn- print-port-providers [cfg port]
   (println (str "\n" (name port) "  (active: " (get-in cfg [:providers port]) ")"))
   (let [active (get-in cfg [:providers port])
@@ -134,7 +153,11 @@
   (println "  config get <dotted.key>          read a value, e.g. providers.translator")
   (println "  config set <dotted.key> <edn>    set a value, e.g. providers.translator :deepl")
   (println "  provider use <asr|mt|digest> <name>  select a provider (validated, persisted)")
-  (println "  provider list [asr|mt|digest]        list providers; * = active, secret-env status")
+  (println "  provider key <asr|mt|digest> <pass-path>")
+  (println "                                   read that provider's API key from `pass`, e.g.")
+  (println "                                   provider key mt Venice/key — applied to every")
+  (println "                                   port using the provider, since the key is its own")
+  (println "  provider list [asr|mt|digest]        list providers; * = active, key source shown")
   (println "  doctor                           show providers, models, keys, engine aliases")
   (println "  run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard|both]")
   (println "                                   translate; format = srt|vtt, output defaults beside source.")
@@ -149,6 +172,7 @@
    {:cmds ["config" "get"]    :fn cmd-config-get}
    {:cmds ["config" "set"]    :fn cmd-config-set}
    {:cmds ["provider" "use"]  :fn cmd-provider-use}
+   {:cmds ["provider" "key"]  :fn cmd-provider-key}
    {:cmds ["provider" "list"] :fn cmd-provider-list}
    {:cmds ["doctor"]          :fn cmd-doctor}
    {:cmds ["run"]             :fn cmd-run

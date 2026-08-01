@@ -5,12 +5,12 @@
    provider keyword — which is exactly what the engine reads. `show` reveals
    baked-defaults <- user-file; the engine layers env/flag overrides on top at run
    time. Mutations write 0600."
-  (:require [babashka.process :as p]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [hive-di.file :as edn-file]
-            [hive-dsl.result :as r]))
+            [hive-dsl.result :as r]
+            [hive-di.pass :as hive-pass]))
 
 (defn config-path
   "XDG-correct user-config path: $XDG_CONFIG_HOME/vtranslate/config.edn else
@@ -97,25 +97,62 @@
   [cfg port]
   (vec (keys (registry-for cfg port))))
 
+(defn opts-key
+  "The per-port options key the engine (and the context addon) read, e.g.
+   :translator -> :translator-opts."
+  [port]
+  (keyword (str (name port) "-opts")))
+
 (def provider-ports [:transcriber :translator :comprehender :composer])
 
 (defn env-set? [env-name]
   (boolean (not-empty (System/getenv (str env-name)))))
 
 (defn pass-entry?
-  "Whether `path` resolves in the pass store. Runs `pass show` and keeps only
-   its exit code — the secret is never printed and never returned. A missing
-   `pass` binary is a false, not a throw.
-
-   Mirrors hive-di.pass/present?; delegate once bb.edn can pin a hive-di that
-   carries it (this repo resolves hive-di from Maven, and 0.3.1 predates it)."
+  "Whether `path` resolves in the pass store, WITHOUT retaining the secret —
+   presence is the only question a diagnostic may ask. Delegates to hive-di,
+   which owns pass-store reads for :source/pass."
   [path]
-  (boolean
-   (when-not (str/blank? (str path))
-     (try
-       (zero? (:exit (p/sh {:out :string :err :string :continue true}
-                           "pass" "show" (str path))))
-       (catch Exception _ false)))))
+  (hive-pass/present? path))
+
+(defn ports-using
+  "Ports whose ACTIVE provider is `provider`. An API key belongs to the provider,
+   but the engine reads it per port ([<port>-opts :secret-pass]), so one Venice
+   account has to be written to every port currently pointed at Venice."
+  [cfg provider]
+  (filterv #(= provider (get-in cfg [:providers %])) provider-ports))
+
+(defn provider-secret-pass
+  "The pass path already configured for `provider` on any port using it, so a
+   second port on the same provider can inherit the key instead of asking for
+   it again. => path | nil"
+  [cfg provider]
+  (some (fn [port] (get-in cfg [(opts-key port) :secret-pass]))
+        (ports-using cfg provider)))
+
+(defn set-provider-secret!
+  "Point every port currently using `provider` at pass `path`.
+
+   A key belongs to the PROVIDER — one Venice account serves translation and
+   the digest alike — but the engine and the context addon each read it per
+   port ([<port>-opts :secret-pass]). Writing every using port keeps the file
+   honest: a panel that showed the key as shared while only one port carried it
+   would be claiming something the engine does not do.
+   => (r/ok message) | (r/err :error/provider-not-active {...})."
+  [provider path]
+  (r/let-ok [cfg  (effective)
+             user (read-user)]
+    (let [ports (ports-using cfg provider)]
+      (if (empty? ports)
+        (r/err :error/provider-not-active
+               {:provider provider
+                :hint "no port is using this provider — select it first (provider use)"})
+        (r/let-ok [_ (write-user! (reduce (fn [u port]
+                                            (assoc-in u [(opts-key port) :secret-pass] path))
+                                          (or user {})
+                                          ports))]
+          (r/ok (str provider " key <- pass " path
+                     "  (" (str/join ", " (map name ports)) ")")))))))
 
 (defn secret-source
   "Where this port's API key actually comes from, mirroring the precedence the
@@ -167,12 +204,20 @@
 
 (defn use-provider!
   "Select `provider` for `port` (writes [:providers port]) after validating it
-   against the registry. => (r/ok message) | (r/err :error/unknown-provider {...})."
+   against the registry. A port switching onto a provider INHERITS the pass path
+   another port already uses for it, so the same account is not configured twice.
+   => (r/ok message) | (r/err :error/unknown-provider {...})."
   [port provider]
   (r/let-ok [cfg (effective)]
     (let [known (known-providers cfg port)]
-      (if (some #{provider} known)
-        (r/let-ok [_ (set-path! [:providers port] provider)]
-          (r/ok (str (name port) " -> " provider)))
+      (if-not (some #{provider} known)
         (r/err :error/unknown-provider
-               {:port port :provider provider :known known})))))
+               {:port port :provider provider :known known})
+        (r/let-ok [_ (set-path! [:providers port] provider)]
+          (let [inherited (when-not (get-in cfg [(opts-key port) :secret-pass])
+                            (provider-secret-pass cfg provider))]
+            (r/let-ok [_ (if inherited
+                           (set-path! [(opts-key port) :secret-pass] inherited)
+                           (r/ok nil))]
+              (r/ok (cond-> (str (name port) " -> " provider)
+                      inherited (str "  (key <- pass " inherited ")"))))))))))
