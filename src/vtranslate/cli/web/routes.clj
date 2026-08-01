@@ -21,6 +21,7 @@
       [:post ["api" "config"]]      {:action :config/patch  :params {}}
       [:get ["api" "jobs"]]         {:action :jobs/list     :params {}}
       [:post ["api" "jobs"]]        {:action :jobs/create   :params {}}
+      [:post ["api" "pick"]]        {:action :source/pick   :params {}}
       [:get ["api" "health"]]       {:action :health/show   :params {}}
       (let [under-jobs? (and (= :get method)
                              (<= 3 (count segs))

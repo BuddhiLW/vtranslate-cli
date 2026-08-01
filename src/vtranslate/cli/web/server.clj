@@ -17,7 +17,9 @@
             [vtranslate.cli.web.routes :as routes]
             [vtranslate.cli.web.runner :as runner]
             [vtranslate.cli.web.schema :as schema]
-            [vtranslate.cli.web.store :as store]))
+            [vtranslate.cli.web.store :as store]
+            [vtranslate.cli.web.port.filepicker :as picker]
+            [vtranslate.cli.web.adapters.native-dialog :as native-dialog]))
 
 (def ^:private json-headers {"Content-Type" "application/json; charset=utf-8"})
 
@@ -115,6 +117,20 @@
                                                   (fs/file-name path) "\"")}
              :body    (slurp path)})))
 
+;; --- source picking ---------------------------------------------------------
+
+(defn- pick-source!
+  "Pop the host's file dialog and report what was chosen. A dismissed dialog is
+   an ordinary 200 carrying {:cancelled true} — the operator changing their mind
+   is not a client error."
+  [{:keys [deps]} request]
+  (let [opts (select-keys (or (read-json-body request) {}) [:title :dir])
+        res  (picker/pick (:picker deps) opts)]
+    (cond
+      (r/ok? res)                              (ok-json (:ok res))
+      (= :error/pick-cancelled (:error res))   (ok-json {:cancelled true})
+      :else                                    (bad-json res))))
+
 ;; --- dispatch ---------------------------------------------------------------
 
 (defn- index-page []
@@ -130,6 +146,7 @@
     (case action
       :ui/index      (index-page)
       :health/show   (ok-json {:engine (subprocess/available?)
+                               :picker (some-> (native-dialog/describe) name)
                                :active (store/active? store)})
       :config/show   (result->http (config-view))
       :config/patch  (result->http (patch-config! request))
@@ -139,6 +156,7 @@
                        (ok-json (runner/describe j (now)))
                        (not-found))
       :jobs/subtitle (serve-subtitle store (:id params))
+      :source/pick   (pick-source! ctx request)
       (not-found))))
 
 (defn make-handler
@@ -154,11 +172,12 @@
          :body    (json/generate-string {:error (or (.getMessage t) (str (type t)))})}))))
 
 (defn default-deps
-  "Production collaborators: the subprocess engine, the wall clock, and
-   monotonic job ids."
+  "Production collaborators: the subprocess engine, the host's file dialog, the
+   wall clock, and monotonic job ids."
   []
   (let [counter (atom 0)]
     {:engine  (subprocess/make-runner)
+     :picker  (native-dialog/make-picker)
      :clock   #(System/currentTimeMillis)
      :next-id #(str "web-" (System/currentTimeMillis) "-" (swap! counter inc))}))
 

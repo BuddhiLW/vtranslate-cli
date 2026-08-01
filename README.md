@@ -45,6 +45,13 @@ with the engine's diagnostics streaming in, download the subtitle when it lands,
 and switch providers from the same page — the panel writes the same config file
 `provider use` does, so the CLI and the panel never disagree.
 
+**Browse…** opens your real file manager. A browser file input only yields a
+filename, never a path, so the dialog is popped by the *server* — which works
+precisely because the panel is loopback-only and therefore shares your machine
+and display. The first of `zenity`, `kdialog`, `yad` or `osascript` on `PATH`
+wins; with none installed the button reports that and you type the path as
+before. `GET /api/health` names the one in use.
+
 It binds to **loopback only, on purpose**: it runs commands and reads files on
 the host, so it must not be reachable from off the machine. There is no auth —
 do not put it behind a public listener or a tunnel.

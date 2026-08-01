@@ -38,6 +38,13 @@
     font-weight: 600; cursor: pointer; width: auto; padding: .55rem 1.2rem;
   }
   button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost {
+    background: var(--bg); color: var(--muted); border-color: var(--line);
+    font-weight: 500; padding: .5rem .7rem; white-space: nowrap;
+  }
+  button.ghost:hover:enabled { color: var(--ink); border-color: var(--accent); }
+  .pick { display: flex; gap: .4rem; }
+  .pick input { min-width: 0; }
   .row { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-top: .9rem; }
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
   th { text-align: left; font-size: .72rem; text-transform: uppercase;
@@ -67,7 +74,10 @@
   <div class="panel">
     <div class="grid">
       <div><label for="source">Source file (path on this machine)</label>
-        <input id="source" placeholder="/home/you/clip.mp4 or subs.srt"></div>
+        <div class="pick">
+          <input id="source" placeholder="/home/you/clip.mp4 or subs.srt">
+          <button id="browse" type="button" class="ghost" title="Open the file manager">Browse…</button>
+        </div></div>
       <div><label for="target">Target language</label>
         <input id="target" value="pt" placeholder="pt"></div>
       <div><label for="srclang">Source language</label>
@@ -180,6 +190,23 @@ function renderProviders(cfg) {
     };
   });
 }
+
+$("browse").onclick = async () => {
+  $("submit-err").textContent = "";
+  $("browse").disabled = true;
+  try {
+    const cur = $("source").value.trim();
+    const dir = cur.includes("/") ? cur.replace(/\/[^/]*$/, "") : "";
+    const res = await api("/api/pick", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir })
+    });
+    if (res.path) $("source").value = res.path;
+  } catch (e) {
+    $("submit-err").textContent = errText(e);
+  } finally { $("browse").disabled = false; }
+};
 
 $("run").onclick = async () => {
   $("submit-err").textContent = "";
