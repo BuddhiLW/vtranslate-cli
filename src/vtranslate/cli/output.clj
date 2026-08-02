@@ -26,6 +26,11 @@
         stem   (fs/strip-ext (fs/file-name p))]
     (str (fs/path (or parent (fs/path ".")) (str stem "." target ".mp4")))))
 
+(defn- spit-dirs! [path content]
+  (when-let [parent (fs/parent (fs/path path))]
+    (fs/create-dirs parent))
+  (spit path content))
+
 (defn write-rendered
   "Write the rendered subtitle carried by engine `result` to `output`.
    An err Result passes through untouched.
@@ -38,11 +43,28 @@
           video    (get-in result [:ok :output-video])]
       (if (string? rendered)
         (do
-          (when-let [parent (fs/parent (fs/path output))]
-            (fs/create-dirs parent))
-          (spit output rendered)
+          (spit-dirs! output rendered)
           (r/ok (cond-> {:output output
                          :job    (select-keys (get-in result [:ok :job])
                                               [:id :state :target-language :subtitle-id])}
                   video (assoc :output-video video))))
         (r/err :error/no-rendered-subtitle {:output output})))))
+
+(defn write-all-rendered
+  "Write every rendered subtitle the engine produced. More than one
+   [:ok :outputs] entry => one sidecar per language, named
+   <stem>.<lang>.<fmt> beside `base-source`; a single output (or the flat
+   subtitle-ingress shape) defers to write-rendered at `output`.
+   An err Result passes through untouched. => Result<summary>."
+  [result base-source fmt output]
+  (let [outputs (get-in result [:ok :outputs])]
+    (if (and (r/ok? result) (> (count outputs) 1))
+      (let [written (mapv (fn [{:keys [target-language rendered]}]
+                            (let [path (subtitle-path base-source target-language fmt nil)]
+                              (spit-dirs! path rendered)
+                              {:language target-language :output path}))
+                          outputs)]
+        (r/ok {:outputs written
+               :job     (select-keys (get-in result [:ok :job])
+                                     [:id :state :target-language :subtitle-id])}))
+      (write-rendered result output))))

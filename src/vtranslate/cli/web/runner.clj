@@ -24,11 +24,11 @@
      :video    (when (job/mux-of j) (out/video-path source target))}))
 
 (defn- run-validated
-  "Run `spec` through the injected engine and write what it renders.
-   => (r/ok summary) | (r/err ...)."
-  [{:keys [engine]} store id spec subtitle-path]
+  "Run `spec` through the injected engine and write what it renders — one
+   sidecar per language for a multi-target job. => (r/ok summary) | (r/err ...)."
+  [{:keys [engine]} store id spec subtitle-path base-source fmt]
   (-> (port/run-spec engine spec #(log! store id %))
-      (out/write-rendered subtitle-path)))
+      (out/write-all-rendered base-source fmt subtitle-path)))
 
 (defn run-job!
   "Drive the job stored under `id` to a terminal state. Blocks.
@@ -38,7 +38,8 @@
         {:keys [subtitle video]} (outputs-for j)
         _       (store/apply! store id job/start (clock))
         outcome (r/let-ok [spec (js/validate (js/build-job-spec (job/spec-inputs j video)))]
-                  (run-validated deps store id spec subtitle))]
+                  (run-validated deps store id spec subtitle
+                                 (get-in j [:request :source]) (job/format-of j)))]
     (if (r/ok? outcome)
       (store/apply! store id job/succeed (clock) (:ok outcome))
       (store/apply! store id job/fail (clock) (dissoc outcome :err)))))

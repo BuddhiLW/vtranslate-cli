@@ -95,7 +95,7 @@
 
 ;; --- jobs -------------------------------------------------------------------
 
-(def ^:private submit-keys [:source :target :source-language :format :mux])
+(def ^:private submit-keys [:source :target :source-language :format :mux :mux-langs])
 
 (defn- create-job!
   "Validate a submission and queue it. => Result<job-view>."
@@ -110,14 +110,22 @@
                            ((:clock deps))))))
 
 (defn- serve-subtitle
-  "Serve the subtitle a finished job wrote, as a download."
-  [store id]
-  (let [j    (store/fetch store id)
-        path (get-in j [:result :output])]
+  "Serve a subtitle a finished job wrote, as a download. A multi-target job
+   carries [:result :outputs]; `?lang=xx` picks one, absent => the first."
+  [store id request]
+  (let [j      (store/fetch store id)
+        lang   (some->> (:query-string request)
+                        (#(str/split (or % "") #"&"))
+                        (some #(when (str/starts-with? % "lang=") (subs % 5))))
+        result (:result j)
+        entry  (if lang
+                 (some #(when (= lang (:language %)) %) (:outputs result))
+                 (first (:outputs result)))
+        path   (or (:output entry) (:output result))]
     (cond
       (nil? j)                 (not-found)
       (not (job/terminal? j))  (bad-json {:error "job has not finished" :status (:status j)})
-      (nil? path)              (bad-json {:error "job produced no subtitle"})
+      (nil? path)              (bad-json {:error "job produced no subtitle" :lang lang})
       (not (fs/exists? path))  (bad-json {:error "subtitle file is gone" :path path})
       :else {:status  200
              :headers {"Content-Type"        "text/plain; charset=utf-8"
@@ -163,7 +171,7 @@
       :jobs/show     (if-let [j (store/fetch store (:id params))]
                        (ok-json (runner/describe j (now)))
                        (not-found))
-      :jobs/subtitle (serve-subtitle store (:id params))
+      :jobs/subtitle (serve-subtitle store (:id params) request)
       :source/pick   (pick-source! ctx request)
       (not-found))))
 

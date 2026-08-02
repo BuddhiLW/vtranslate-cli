@@ -136,24 +136,37 @@
   (let [[source target source-lang fmt output] (:args m)
         fmt   (or fmt "srt")
         mux   (some-> (get-in m [:opts :mux]) keyword)
+        mux-langs (get-in m [:opts :mux-langs])
         mux?  (and mux (not= :none mux))
-        usage "usage: vtranslate run <source> <target-lang> [source-lang|auto] [format] [output] [--mux soft|hard|both]"]
+        usage "usage: vtranslate run <source> <target-lang[,target-lang...]> [source-lang|auto] [format] [output] [--mux soft|hard|both] [--mux-langs lang[,lang...]]"]
     (cond
       (nil? source) (emit (r/err :error/missing-source {:hint usage}))
       (nil? target) (emit (r/err :error/missing-target {:hint usage}))
       :else
-      (let [sub-out   (out/subtitle-path source target fmt output)
-            video-out (when mux? (out/video-path source target))]
+      (let [remote?   (some? (re-find #"^[A-Za-z][A-Za-z0-9+.-]*://" source))
+            ;; remote source: the sidecar path is only knowable after the engine
+            ;; fetched the media — derive it from the job's localized :source
+            sub-out   (when-not remote? (out/subtitle-path source target fmt output))
+            video-out (when (and mux? (not remote?)) (out/video-path source target))]
         (emit
-         (r/let-ok [spec (js/validate
-                          (js/build-job-spec {:job-id          (str "cli-" (System/currentTimeMillis))
-                                              :source          source
-                                              :target          target
-                                              :source-language source-lang
-                                              :format          fmt
-                                              :mux             (when mux? mux)
-                                              :output          video-out}))]
-           (out/write-rendered (engine/run-job spec) sub-out)))))))
+         (r/let-ok [cfg  (config/effective)
+                    spec (js/validate
+                          (cond-> (js/build-job-spec {:job-id          (str "cli-" (System/currentTimeMillis))
+                                                      :source          source
+                                                      :target          target
+                                                      :source-language source-lang
+                                                      :format          fmt
+                                                      :mux             (when mux? mux)
+                                                      :mux-langs       mux-langs
+                                                      :output          video-out})
+                            (seq (:addons cfg)) (assoc-in [:config :addons] (:addons cfg))))]
+           (let [result (engine/run-job spec)
+                 base   (if remote?
+                          (or (get-in result [:ok :spec :source])
+                              (get-in result [:ok :job :source])
+                              source)
+                          source)]
+             (out/write-all-rendered result base fmt sub-out))))))))
 
 ;; --- dispatch ---------------------------------------------------------------
 
@@ -191,7 +204,8 @@
    {:cmds ["cpu"]             :fn cmd-cpu}
    {:cmds ["doctor"]          :fn cmd-doctor}
    {:cmds ["run"]             :fn cmd-run
-    :spec {:mux {:desc "attach translated subs to the video: soft (embed) | hard (burn-in) | both (two files)"}}}
+    :spec {:mux       {:desc "attach translated subs to the video: soft (embed) | hard (burn-in) | both (two files)"}
+           :mux-langs {:desc "comma-separated subset of targets that get a video, e.g. pt-BR"}}}
    {:cmds []                  :fn cmd-help}])
 
 (defn -main [& args]

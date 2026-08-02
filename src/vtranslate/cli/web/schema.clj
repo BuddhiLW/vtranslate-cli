@@ -23,13 +23,15 @@
 
 (def SubmitRequest
   "A job the browser asks for. Permissive at the boundary: everything the CLI
-   defaults is optional here too, so the form can post only what it knows."
+   defaults is optional here too, so the form can post only what it knows.
+   `target` and `mux-langs` accept comma-separated lists (multi-target jobs)."
   [:map {:closed true}
    [:source          NonBlankString]
    [:target          NonBlankString]
    [:source-language {:optional true} [:maybe :string]]
    [:format          {:optional true} [:maybe SubtitleFormat]]
-   [:mux             {:optional true} [:maybe MuxMode]]])
+   [:mux             {:optional true} [:maybe MuxMode]]
+   [:mux-langs       {:optional true} [:maybe :string]]])
 
 (def JobStatus
   [:enum :queued :running :succeeded :failed])

@@ -84,7 +84,7 @@
    the caller resolved; it is carried only when a mux was actually requested, so
    this stays a pure restatement of the request."
   [job video-output]
-  (let [{:keys [source target source-language]} (:request job)
+  (let [{:keys [source target source-language mux-langs]} (:request job)
         mux (mux-of job)]
     (cond-> {:job-id          (:id job)
              :source          source
@@ -92,4 +92,5 @@
              :source-language source-language
              :format          (format-of job)
              :mux             mux}
+      (not (str/blank? (str mux-langs))) (assoc :mux-langs mux-langs)
       (and mux video-output) (assoc :output video-output))))

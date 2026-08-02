@@ -78,8 +78,8 @@
           <input id="source" placeholder="/home/you/clip.mp4 or subs.srt">
           <button id="browse" type="button" class="ghost" title="Open the file manager">Browse…</button>
         </div></div>
-      <div><label for="target">Target language</label>
-        <input id="target" value="pt" placeholder="pt"></div>
+      <div><label for="target">Target language(s)</label>
+        <input id="target" value="pt" placeholder="pt, or pt-BR,ru"></div>
       <div><label for="srclang">Source language</label>
         <input id="srclang" value="auto" placeholder="auto"></div>
       <div><label for="format">Subtitle format</label>
@@ -91,6 +91,8 @@
           <option value="hard">hard — burned in</option>
           <option value="both">both</option>
         </select></div>
+      <div><label for="mux-langs">…for languages</label>
+        <input id="mux-langs" placeholder="blank = all targets; e.g. pt-BR"></div>
     </div>
     <div class="row"><button id="run">Run</button><span id="submit-err" class="err"></span></div>
   </div>
@@ -147,8 +149,12 @@ function renderJobs(jobs) {
   }
   tb.innerHTML = jobs.map(j => {
     const req = j.request || {};
+    const outs = (j.result && j.result.outputs) || null;
     const out = j.result && j.result.output;
-    const link = j.status === "succeeded" && out
+    const link = j.status === "succeeded" && outs
+      ? outs.map(o => `<a href="/api/jobs/${encodeURIComponent(j.id)}/subtitle?lang=${encodeURIComponent(o.language)}">${esc(o.language)}</a>`).join(" · ")
+           + `<div class="muted" style="font-size:.75rem">${esc(outs.map(o => o.output).join(", "))}</div>`
+      : j.status === "succeeded" && out
       ? `<a href="/api/jobs/${encodeURIComponent(j.id)}/subtitle">download</a>
          <div class="muted" style="font-size:.75rem">${esc(out)}</div>`
       : j.status === "failed" ? `<span class="muted">—</span>` : "";
@@ -235,7 +241,8 @@ $("run").onclick = async () => {
     target: $("target").value.trim(),
     "source-language": $("srclang").value.trim() || null,
     format: $("format").value,
-    mux: $("mux").value || null
+    mux: $("mux").value || null,
+    "mux-langs": $("mux-langs").value.trim() || null
   };
   try {
     await api("/api/jobs", {
