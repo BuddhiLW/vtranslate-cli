@@ -1,17 +1,16 @@
 ;; NOT loaded by the local babashka runtime (dev runs use bb.edn). This file
-;; exists so bb-depsolve has a git coordinate to manage: when the engine releases
-;; a new tag, `bb sync --org BuddhiLW --apply` (run from the vtranslate/ root)
-;; rewrites the :git/tag + :git/sha below. It also pins the engine version for
-;; the future `-Sdeps` packaged distribution (carded), and it is the classpath a
-;; `bbin install` wrapper resolves — hence the runtime deps mirror bb.edn's and
-;; :paths carries resources/default-config.edn.
+;; pins the engine version for the `-Sdeps` packaged distribution (carded), and
+;; it is the classpath a `bbin install` wrapper resolves — hence the runtime
+;; deps mirror bb.edn's and :paths carries resources/default-config.edn.
 ;;
-;; bb-depsolve's coordinate regex REQUIRES :git/tag immediately before :git/sha.
+;; The engine is a Maven coordinate now, so bb-depsolve no longer manages it:
+;; its rewrite regex only matches :git/tag immediately before :git/sha. Bump
+;; :mvn/version by hand when the engine releases.
 {:paths ["src" "resources"]
  :deps {metosin/malli {:mvn/version "0.16.4"}
         io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
         io.github.hive-agi/hive-di {:mvn/version "0.4.0"}
-        io.github.BuddhiLW/vtranslate-engine {:git/tag "v0.1.0" :git/sha "cd7477e"}}
+        io.github.buddhilw/vtranslate-engine {:mvn/version "0.1.1"}}
 
  :aliases
  {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
