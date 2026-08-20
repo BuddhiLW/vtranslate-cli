@@ -7,15 +7,15 @@
 ;; `bb web` serves the local control panel over the same core.
 {:paths ["src" "resources"]
  :deps  {;; Result monad — the CLI threads the same railway as the engine.
-         io.github.hive-agi/hive-dsl {:mvn/version "0.5.2"}
+         io.github.hive-agi/hive-dsl {:mvn/version "0.5.10"}
          ;; malli - plain metosin schema for the transport JobSpec boundary guard (bb-compatible).
-         metosin/malli {:mvn/version "0.16.4"}
+         metosin/malli {:mvn/version "0.20.1"}
          ;; EDN config IO with 0600 perm-hardening (read-edn / write-edn! :secret?).
          ;; A machine-local :local/root override belongs in local.deps.edn
          ;; (gitignored) — never a host-absolute path in a tracked file.
-         io.github.hive-agi/hive-di {:mvn/version "0.4.0"}}
+         io.github.hive-agi/hive-di {:mvn/version "0.4.1"}}
  ;; babashka.cli / babashka.fs / babashka.process are built into bb — no dep.
- ;; bbin install io.github.BuddhiLW/vtranslate-cli reads this entry point; the
+ ;; bbin install io.github.buddhilw/vtranslate-cli reads this entry point; the
  ;; installed wrapper resolves the classpath from deps.edn, NOT from :deps here.
  :bbin/bin {vtranslate {:main-opts ["-m" "vtranslate.cli.main"]}}
  :tasks {vtranslate {:doc      "vtranslate CLI — config + provider + run"
