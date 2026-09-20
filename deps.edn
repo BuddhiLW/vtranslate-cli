@@ -10,7 +10,7 @@
  :deps {metosin/malli {:mvn/version "0.20.1"}
         io.github.hive-agi/hive-dsl {:mvn/version "0.5.19"}
         io.github.hive-agi/hive-di {:mvn/version "0.4.6"}
-        io.github.buddhilw/vtranslate-engine {:mvn/version "0.1.27"}}
+        io.github.buddhilw/vtranslate-engine {:mvn/version "0.1.28"}}
 
  :aliases
  {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}
