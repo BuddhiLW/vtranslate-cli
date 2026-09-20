@@ -1,67 +1,88 @@
-name: Release
+name: release
+
+# PINNED release: ./VERSION is the single source of truth for both the git tag
+# and the Maven coordinate, so a release is a deliberate `clojure -T:build bump`
+# plus a commit. A push at a VERSION already published does nothing, because
+# build.clj HEAD-checks Clojars first.
+#
+# ORDER MATTERS, and this workflow used to have it backwards. Tag and GitHub
+# release were created BEFORE the deploy, so a failed deploy left a tag naming
+# a version that does not exist, and a Maven coordinate is immutable, so nobody
+# could ever publish that version again. Publish first; a tag then means "this
+# version is in the registry", which is what vtranslate-engine's release.yml
+# already does.
+#
+# WHY NOTHING WAS EVER PUBLISHED. The deploy step was guarded with
+#   if: env.CLOJARS_USERNAME != ''
+# and the CLOJARS_USERNAME it tests was defined in that same step's own `env:`
+# block. A step's `if:` is evaluated BEFORE the step's env is applied, so the
+# expression read an unset variable every time and the step was skipped on
+# every run since the workflow was written. The run stayed green, so nothing
+# ever pointed at it, and io.github.buddhilw/vtranslate-cli is absent from
+# Clojars to this day. A missing credential now fails the job in its own step,
+# with a message naming the secret: vtranslate-fetch's release.yml has the same
+# guard and the same reasoning.
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'resources/**'
+      - 'deps.edn'
+      - 'bb.edn'
+      - 'version.edn'
+      - 'VERSION'
+      # Include the workflow itself so a change to the release pipeline is
+      # exercised by the very push that makes it.
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
-    name: Tag & Release
     runs-on: ubuntu-latest
+    env:
+      CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
+      CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
+      MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_TOKEN: ${{ secrets.MAVEN_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Contract: this job either publishes or fails. See the header.
+      - name: Require publish credentials
+        run: |
+          set -uo pipefail
+          missing=
+          [ -n "${CLOJARS_USERNAME:-}" ] || missing="${missing} CLOJARS_USERNAME"
+          [ -n "${CLOJARS_PASSWORD:-}" ] || missing="${missing} CLOJARS_PASSWORD"
+          if [ -n "${missing}" ]; then
+            echo "::error::unset secret(s):${missing}. Nothing would be published."
+            exit 1
+          fi
+
       - name: Read version
         id: version
         run: |
-          if [ -f VERSION ]; then
-            VERSION=$(cat VERSION | tr -d '[:space:]')
-          else
+          set -euo pipefail
+          if [ ! -f VERSION ]; then
             echo "::error::VERSION file not found"
             exit 1
           fi
+          VERSION="$(tr -d '[:space:]' < VERSION)"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Check if tag exists
-        id: check_tag
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create tag
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
-
-      - name: Check if release exists
-        id: check_release
-        run: |
-          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Create GitHub release
-        if: steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          generate_release_notes: true
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -69,9 +90,8 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # The official installer touches no API, so it behaves identically on
-      # GitHub and Gitea. `clojure --version` is the assertion.
-      - name: Setup Clojure CLI
+      # The official installers, not DeLaGuardo/setup-clojure; ci.yml says why.
+      - name: Setup Clojure CLI and babashka
         run: |
           set -euo pipefail
           curl -fsSL -o /tmp/clj-install.sh \
@@ -79,12 +99,72 @@ jobs:
           chmod +x /tmp/clj-install.sh
           sudo /tmp/clj-install.sh
           clojure --version
+          curl -fsSL -o /tmp/bb-install \
+            https://raw.githubusercontent.com/babashka/babashka/master/install
+          chmod +x /tmp/bb-install
+          sudo /tmp/bb-install
+          bb --version
 
-      # deploy reads version.edn :publish (:clojars) and VERSION. Idempotent —
-      # a version already on Clojars HEAD-checks and skips.
+      # Gate BEFORE the deploy. A published Maven coordinate is immutable, so a
+      # red suite must not be able to mint a version and ship it.
+      - name: Test
+        run: bb test
+
+      # `deploy` builds a basis from deps.edn, which names
+      # io.github.buddhilw/vtranslate-engine. That artifact lives in the
+      # vtranslate org's PRIVATE registry past 0.1.2, so basis creation needs a
+      # credential even though the suite above does not: the suite runs on
+      # bb.edn's classpath, which has no engine on it. deps.edn declares the
+      # repository; maven pairs credentials to it BY ID, so the ids here and
+      # there have to agree.
+      - name: Materialize private-registry resolution credentials
+        run: |
+          set -uo pipefail
+          TOKEN="${MAVEN_TOKEN:-${MAVEN_PASSWORD:-}}"
+          if [ -z "${MAVEN_USERNAME:-}" ] || [ -z "${TOKEN}" ]; then
+            echo "::error::MAVEN_USERNAME + MAVEN_TOKEN (or MAVEN_PASSWORD) are" \
+                 "unset on this repository. clojure -T:build cannot resolve" \
+                 "io.github.buddhilw/vtranslate-engine and would fail building" \
+                 "the basis, before it reaches Clojars at all."
+            exit 1
+          fi
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/settings.xml" <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>vtranslate-gitea</id>
+                <username>${MAVEN_USERNAME}</username>
+                <password>${TOKEN}</password>
+              </server>
+              <server>
+                <id>hive-gitea</id>
+                <username>${MAVEN_USERNAME}</username>
+                <password>${TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      # Idempotent: a version already on Clojars HEAD-checks and skips, so a
+      # re-run is a no-op rather than an error.
       - name: Deploy to Clojars
-        if: env.CLOJARS_USERNAME != ''
-        env:
-          CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
-          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
         run: clojure -T:build deploy
+
+      # AFTER the deploy, so a tag means the version is in the registry.
+      - name: Tag
+        run: |
+          set -euo pipefail
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "${{ steps.version.outputs.tag }} already exists"
+          else
+            git -c user.name=github-actions -c user.email=github-actions@github.com \
+              tag "${{ steps.version.outputs.tag }}"
+            git push origin "${{ steps.version.outputs.tag }}"
+          fi
+
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true

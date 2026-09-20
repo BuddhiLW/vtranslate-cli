@@ -1,0 +1,50 @@
+name: ci
+
+# Every push and pull request runs the suite, so every commit carries a status.
+# release.yml runs the same suite again before it publishes.
+#
+# `bb test`, not `clojure -M:test`: this CLI is a babashka program and bb.edn
+# is the manifest its tests load under. bb.edn's deps are the three public
+# hive libraries, so this job needs no registry credential. deps.edn is a
+# different classpath for a different purpose (the packaged `bbin install`
+# distribution), and it names vtranslate-engine, which is private.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The official installer, not DeLaGuardo/setup-clojure: that action calls
+      # the GitHub API and authenticates with GITHUB_TOKEN, which works here and
+      # does NOT work under Gitea Actions, where the same token is a Gitea one
+      # github.com rejects. It logs ::error:: without failing its own step, so a
+      # job continues with nothing on PATH and dies later at a bare exit 127.
+      # Half this fleet runs on Gitea; a workflow that behaves the same on both
+      # is one less thing to rediscover. `bb --version` is the assertion.
+      - name: Install babashka
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/bb-install \
+            https://raw.githubusercontent.com/babashka/babashka/master/install
+          chmod +x /tmp/bb-install
+          sudo /tmp/bb-install
+          bb --version
+
+      - name: Test
+        run: bb test

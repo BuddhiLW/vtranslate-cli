@@ -7,6 +7,21 @@
 ;; its rewrite regex only matches :git/tag immediately before :git/sha. Bump
 ;; :mvn/version by hand when the engine releases.
 {:paths ["src" "resources"]
+
+ ;; vtranslate-engine is published to the vtranslate org's PRIVATE registry
+ ;; past 0.1.2, so `clojure -T:build` cannot even create a basis for this
+ ;; project without knowing where to look. bb.edn's classpath has no engine on
+ ;; it, which is why `bb test` needs none of this and the release does.
+ ;; Credentials come from a server entry in ~/.m2/settings.xml, and maven pairs
+ ;; them to a repository BY ID, so the id here and the id there have to agree.
+ ;; BOTH ids name the same url for the reason vtranslate-engine's own deps.edn
+ ;; declares both: the credential on a working machine was issued as
+ ;; `hive-gitea`, while CI writes `vtranslate-gitea`.
+ :mvn/repos {"vtranslate-gitea"
+             {:url "https://gitea.hive-mcp.com/api/packages/vtranslate/maven"}
+             "hive-gitea"
+             {:url "https://gitea.hive-mcp.com/api/packages/vtranslate/maven"}}
+
  :deps {metosin/malli {:mvn/version "0.20.1"}
         io.github.hive-agi/hive-dsl {:mvn/version "0.5.19"}
         io.github.hive-agi/hive-di {:mvn/version "0.4.6"}
