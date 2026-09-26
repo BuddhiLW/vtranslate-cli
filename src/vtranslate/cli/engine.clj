@@ -63,16 +63,30 @@
       :else         (r/err :error/engine-failed
                            {:exit exit :out (str out) :err (str err)}))))
 
+(defn addon-warnings
+  "The engine's addon-failure lines in its stderr `err`, in order. The engine
+   prints one `[vtranslate] addon <id> did not load: ...` line per addon that
+   did not come up and still runs the job without it, so a run can SUCCEED
+   with an addon silently missing. => vector of line"
+  [err]
+  (filterv #(str/starts-with? % "[vtranslate] addon ") (str/split-lines (str err))))
+
 (defn- shell-engine
   "Shell `cmd` (in `dir` when non-nil), feed `spec` as EDN on stdin, parse the
-   printed Result. => (r/ok ...) | (r/err ...)."
+   printed Result. A successful run's addon warnings are relayed to this
+   process's stderr; a failed run already carries the whole stderr in its
+   Result. => (r/ok ...) | (r/err ...)."
   [dir cmd spec]
   (let [{:keys [out err exit]}
         (apply p/shell
                (cond-> {:in (pr-str spec) :out :string :err :string :continue true}
                  dir (assoc :dir dir))
-               cmd)]
-    (parse-result out err exit)))
+               cmd)
+        result (parse-result out err exit)]
+    (when (r/ok? result)
+      (binding [*out* *err*]
+        (run! println (addon-warnings err))))
+    result))
 
 (defn run-job
   "Shell the engine in a JVM subprocess, feed `spec` as EDN on stdin, parse the

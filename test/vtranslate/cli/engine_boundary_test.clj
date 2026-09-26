@@ -27,6 +27,18 @@
       (is (= 127 (:exit res)))
       (is (= diag (:err res))))))
 
+(deftest addon-warnings-are-picked-out-of-the-engines-stderr
+  ;; A run succeeds without an addon that did not load; before this, a
+  ;; successful Result dropped stderr, so the only trace of that was timing.
+  (let [err (str "SLF4J: no binding\n"
+                 "[vtranslate] addon :acme/private-addon did not load: :addon/unknown-id: ...\n"
+                 "[vtranslate] 1 core adapter(s) unavailable on this classpath: x\n"
+                 "[vtranslate] addon acme.other.addon did not load: :addon/load-failed\n")]
+    (is (= ["[vtranslate] addon :acme/private-addon did not load: :addon/unknown-id: ..."
+            "[vtranslate] addon acme.other.addon did not load: :addon/load-failed"]
+           (engine/addon-warnings err))))
+  (is (= [] (engine/addon-warnings nil)) "no stderr, no warnings"))
+
 (deftest parse-result-flags-ok-contradicting-nonzero-exit
   (testing "a parsable ok but nonzero exit => engine-failed carrying :err"
     (let [res (parse-result (pr-str (r/ok {:x 1})) "partial crash" 3)]
