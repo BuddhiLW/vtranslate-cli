@@ -1,0 +1,12 @@
+{:cancel
+ {:out {:error :error/pick-cancelled, :reason "dialog dismissed"},
+  :in [{:exit 1, :out "", :err ""}]},
+ :chosen
+ {:out {:ok {:path "/tmp/a"}},
+  :in [{:exit 0, :out "/tmp/a\n", :err ""}]},
+ :empty
+ {:out {:error :error/pick-cancelled, :reason "no file chosen"},
+  :in [{:exit 0, :out "", :err ""}]},
+ :failure
+ {:out {:error :error/pick-failed, :exit 2, :message "bad"},
+  :in [{:exit 2, :out "", :err "bad"}]}}

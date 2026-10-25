@@ -1,0 +1,28 @@
+{:invalid
+ {:out
+  {:error :error/invalid-job-spec,
+   :explain
+   {:job-id ["missing required key"],
+    :source ["missing required key"],
+    :source-language ["missing required key"],
+    :target-language ["missing required key"],
+    :format ["missing required key"],
+    :config ["missing required key"]},
+   :spec {}},
+  :in [{}]},
+ :valid
+ {:out
+  {:ok
+   {:job-id "j",
+    :source "film.mp4",
+    :source-language "auto",
+    :target-language "pt",
+    :format :format/srt,
+    :config {}}},
+  :in
+  [{:job-id "j",
+    :source "film.mp4",
+    :source-language "auto",
+    :target-language "pt",
+    :format :format/srt,
+    :config {}}]}}

@@ -1,0 +1,39 @@
+{:done
+ {:out 10,
+  :in
+  [{:id "j",
+    :status :succeeded,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at 20,
+    :finished-at 30,
+    :result {},
+    :error nil}
+   50]},
+ :queued
+ {:out nil,
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}
+   50]},
+ :running
+ {:out 30,
+  :in
+  [{:id "j",
+    :status :running,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at 20,
+    :finished-at nil,
+    :result nil,
+    :error nil}
+   50]}}

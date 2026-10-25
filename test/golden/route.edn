@@ -1,0 +1,8 @@
+{:missing {:out nil, :in [:delete "/api/jobs"]},
+ :root {:out {:action :ui/index, :params {}}, :in [:get "/"]},
+ :show
+ {:out {:action :jobs/show, :params {:id "a"}},
+  :in [:get "/api/jobs/a"]},
+ :subtitle
+ {:out {:action :jobs/subtitle, :params {:id "a"}},
+  :in [:get "/api/jobs/a/subtitle"]}}

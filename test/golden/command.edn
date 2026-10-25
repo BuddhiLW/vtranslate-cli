@@ -1,0 +1,10 @@
+{:kdialog
+ {:in [:kdialog {:title " Hello ", :dir "/tmp"}],
+  :out ["kdialog" "--title" "Hello" "--getopenfilename" "/tmp"]},
+ :zenity
+ {:in [:zenity {}],
+  :out
+  ["zenity"
+   "--file-selection"
+   "--title"
+   "Choose a video or subtitle file"]}}

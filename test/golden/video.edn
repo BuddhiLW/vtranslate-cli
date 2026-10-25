@@ -1,0 +1,1 @@
+{:video {:out "/tmp/film.pt.mp4", :in ["/tmp/film.mp4" "pt"]}}

@@ -1,0 +1,4 @@
+{:default
+ {:out "/tmp/film.pt.srt", :in ["/tmp/film.mp4" "pt" "srt" nil]},
+ :override
+ {:out "custom.vtt", :in ["film.mp4" "pt" "vtt" "custom.vtt"]}}

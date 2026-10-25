@@ -1,0 +1,24 @@
+{:default
+ {:out "srt",
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}]},
+ :vtt
+ {:out "vtt",
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt", :format "vtt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}]}}

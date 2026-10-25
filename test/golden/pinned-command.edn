@@ -1,0 +1,7 @@
+{:pinned
+ {:out
+  ["clojure"
+   "-Sdeps"
+   "{:aliases {:vtranslate-engine {:extra-deps {io.github.BuddhiLW/vtranslate-engine #:git{:tag \"v0.1.0\", :sha \"cd7477e\"}, io.github.givimad/whisper-jni #:mvn{:version \"1.7.1\"}, org.bytedeco/javacv #:mvn{:version \"1.5.10\"}, org.bytedeco/ffmpeg$linux-x86_64 #:mvn{:version \"6.1.1-1.5.10\"}, org.bytedeco/javacpp$linux-x86_64 #:mvn{:version \"1.5.10\"}}, :main-opts [\"-m\" \"vtranslate.engine.main\"]}}}"
+   "-M:vtranslate-engine"],
+  :in []}}

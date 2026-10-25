@@ -1,0 +1,26 @@
+{:addon
+ {:in [:addon],
+  :out
+  {:aliases ":ffmpeg:whisper-jni:addon:run",
+   :sdeps "{:aliases {:addon {:extra-paths [\"addon/src\"]}}}",
+   :command
+   ["clojure"
+    "-Sdeps"
+    "{:aliases {:addon {:extra-paths [\"addon/src\"]}}}"
+    "-M:ffmpeg:whisper-jni:addon:run"]}},
+ :duplicate
+ {:in [:addon :addon],
+  :out
+  {:aliases ":ffmpeg:whisper-jni:addon:run",
+   :sdeps "{:aliases {:addon {:extra-paths [\"addon/src\"]}}}",
+   :command
+   ["clojure"
+    "-Sdeps"
+    "{:aliases {:addon {:extra-paths [\"addon/src\"]}}}"
+    "-M:ffmpeg:whisper-jni:addon:run"]}},
+ :none
+ {:in [],
+  :out
+  {:aliases ":ffmpeg:whisper-jni:run",
+   :sdeps nil,
+   :command ["clojure" "-M:ffmpeg:whisper-jni:run"]}}}

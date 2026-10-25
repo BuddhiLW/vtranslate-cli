@@ -1,0 +1,8 @@
+{:bad
+ {:out
+  {:error :error/engine-failed, :exit 2, :out "not edn", :err "oops"},
+  :in ["not edn" "oops" 2]},
+ :error {:out {:error :x}, :in ["{:error :x}" "" 1]},
+ :ok
+ {:out {:ok {:rendered "text"}},
+  :in ["{:ok {:rendered \"text\"}}" "" 0]}}

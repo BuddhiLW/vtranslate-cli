@@ -1,0 +1,4 @@
+{:all
+ {:in ["zenity" "kdialog" "yad" "osascript"],
+  :out [:zenity :kdialog :yad :osascript]},
+ :none {:in [], :out []}}
