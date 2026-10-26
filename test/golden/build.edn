@@ -1,0 +1,28 @@
+{:many
+ {:out
+  {:job-id "j",
+   :source "film.mp4",
+   :source-language "auto",
+   :target-language "pt",
+   :format :format/srt,
+   :config {:composer :soft},
+   :target-languages ["pt" "en"],
+   :mux-languages ["pt"],
+   :output "out.mp4"},
+  :in
+  [{:job-id "j",
+    :source "film.mp4",
+    :target " pt , en ",
+    :format "srt",
+    :mux :soft,
+    :mux-langs "pt",
+    :output "out.mp4"}]},
+ :single
+ {:out
+  {:job-id "j",
+   :source "film.mp4",
+   :source-language "auto",
+   :target-language "pt",
+   :format :format/srt,
+   :config {}},
+  :in [{:job-id "j", :source "film.mp4", :target "pt", :format "srt"}]}}

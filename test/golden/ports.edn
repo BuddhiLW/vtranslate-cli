@@ -1,0 +1,14 @@
+{:absent
+ {:out [],
+  :in
+  [{:providers {:translator :venice, :comprehender :venice},
+    :translator-opts {:secret-pass "key"},
+    :registry {:translator {:venice {:offline false}}}}
+   :unknown]},
+ :shared
+ {:out [:translator :comprehender],
+  :in
+  [{:providers {:translator :venice, :comprehender :venice},
+    :translator-opts {:secret-pass "key"},
+    :registry {:translator {:venice {:offline false}}}}
+   :venice]}}

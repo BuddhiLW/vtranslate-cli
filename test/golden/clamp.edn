@@ -1,0 +1,5 @@
+{:auto {:out nil, :in [:auto 8]},
+ :bad {:out nil, :in ["bad" 8]},
+ :high {:out 8, :in [20 8]},
+ :low {:out 1, :in [0 8]},
+ :max {:out 8, :in ["max" 8]}}

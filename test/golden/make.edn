@@ -1,0 +1,12 @@
+{:queued
+ {:out
+  {:id "j",
+   :status :queued,
+   :request {:source "film.mp4", :target "pt"},
+   :log [],
+   :submitted-at 10,
+   :started-at nil,
+   :finished-at nil,
+   :result nil,
+   :error nil},
+  :in ["j" {:source "film.mp4", :target "pt"} 10]}}

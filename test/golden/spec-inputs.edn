@@ -1,0 +1,39 @@
+{:mux
+ {:out
+  {:job-id "j",
+   :source "film.mp4",
+   :target "pt",
+   :source-language nil,
+   :format "srt",
+   :mux :soft,
+   :output "out.mp4"},
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt", :mux "soft"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}
+   "out.mp4"]},
+ :plain
+ {:out
+  {:job-id "j",
+   :source "film.mp4",
+   :target "pt",
+   :source-language nil,
+   :format "srt",
+   :mux nil},
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}
+   nil]}}

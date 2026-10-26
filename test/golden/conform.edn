@@ -1,0 +1,11 @@
+{:invalid
+ {:in {},
+  :out
+  {:error :error/invalid-request,
+   :explain
+   {:source ["missing required key"],
+    :target ["missing required key"]},
+   :value {}}},
+ :valid
+ {:in {:source "film.mp4", :target "pt"},
+  :out {:ok {:source "film.mp4", :target "pt"}}}}

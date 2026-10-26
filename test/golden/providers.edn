@@ -1,0 +1,8 @@
+{:composer {:out [:none :soft :hard], :in [{} :composer]},
+ :mt
+ {:out [:venice],
+  :in
+  [{:providers {:translator :venice, :comprehender :venice},
+    :translator-opts {:secret-pass "key"},
+    :registry {:translator {:venice {:offline false}}}}
+   :translator]}}

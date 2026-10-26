@@ -1,0 +1,16 @@
+{:addon
+ {:in [:addon],
+  :out
+  {:source? true,
+   :checked? true,
+   :aliases [:addon],
+   :preset {:extra-paths ["addon/src"]},
+   :sdeps {:aliases {:addon {:extra-paths ["addon/src"]}}}}},
+ :empty
+ {:in [],
+  :out
+  {:source? true,
+   :checked? true,
+   :aliases [],
+   :preset {:extra-paths ["addon/src"]},
+   :sdeps nil}}}

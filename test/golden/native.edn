@@ -1,0 +1,2 @@
+{:none {:in [], :out {:id nil, :picker? true}},
+ :zenity {:in ["zenity"], :out {:id :zenity, :picker? true}}}

@@ -1,0 +1,4 @@
+{:asr {:out :transcriber, :in ["ASR"]},
+ :mt {:out :translator, :in ["mt"]},
+ :nil {:out nil, :in [nil]},
+ :unknown {:out nil, :in ["no"]}}

@@ -1,0 +1,3 @@
+{:empty {:out nil, :in [""]},
+ :many {:out "/tmp/a", :in [" /tmp/a |/tmp/b\n"]},
+ :nil {:out nil, :in [nil]}}

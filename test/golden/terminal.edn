@@ -1,0 +1,36 @@
+{:failed
+ {:out true,
+  :in
+  [{:id "j",
+    :status :failed,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at 20,
+    :finished-at 30,
+    :result nil,
+    :error {}}]},
+ :queued
+ {:out false,
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}]},
+ :success
+ {:out true,
+  :in
+  [{:id "j",
+    :status :succeeded,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at 20,
+    :finished-at 30,
+    :result {},
+    :error nil}]}}

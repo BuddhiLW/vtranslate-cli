@@ -1,0 +1,5 @@
+{:classpath
+ {:in [:classpath true], :out {:satisfies? true, :ok? true}},
+ :engine {:in [:engine true], :out {:satisfies? true, :ok? true}},
+ :invalid {:in [:engine false], :out {:satisfies? false, :ok? false}},
+ :picker {:in [:picker true], :out {:satisfies? true, :ok? true}}}

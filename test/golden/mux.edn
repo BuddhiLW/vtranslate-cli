@@ -1,0 +1,24 @@
+{:none
+ {:out nil,
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}]},
+ :soft
+ {:out :soft,
+  :in
+  [{:id "j",
+    :status :queued,
+    :request {:source "film.mp4", :target "pt", :mux "soft"},
+    :log [],
+    :submitted-at 10,
+    :started-at nil,
+    :finished-at nil,
+    :result nil,
+    :error nil}]}}
